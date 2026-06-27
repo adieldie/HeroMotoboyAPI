@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Central do Motoboy</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; color: #333; }
+        .header { background-color: #2299dd; color: white; padding: 15px; text-align: center; font-size: 18px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .scanner-container { width: 100%; max-width: 500px; margin: 0 auto; background: black; position: relative; }
+        #reader { width: 100%; }
+        .status-bar { text-align: center; padding: 10px; font-size: 14px; background: #fff; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .orders-section { padding: 15px; max-width: 500px; margin: 0 auto; }
+        .orders-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #555; }
+        .order-card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #28a745; }
+        .order-info h3 { margin: 0 0 5px 0; font-size: 16px; color: #333; }
+        .order-info p { margin: 0; font-size: 12px; color: #666; }
+        .order-actions button { border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; margin-left: 5px; }
+        .btn-view { background-color: #e9ecef; color: #333; }
+        .btn-return { background-color: #dc3545; color: white; }
+        
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; font-size: 14px; display: none; z-index: 1000; }
+        
+        /* Modal do Comprovante */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: flex-end; }
+        .modal-content { background: #f4f6f9; width: 100%; height: 85vh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; overflow: hidden; animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .modal-header { padding: 15px 20px; background: white; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 16px; }
+        .modal-close { cursor: pointer; color: #dc3545; font-size: 22px; padding: 5px; }
+        .modal-body { flex: 1; padding: 0; display: flex; justify-content: center; background: #e9ecef; }
+        .receipt-frame { width: 100%; height: 100%; border: none; background: white; max-width: 400px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <i class="fas fa-motorcycle"></i> Central do Motoboy
+    </div>
+    
+    <div class="status-bar" id="statusMsg">
+        Aponte a câmera para o QR Code do pedido.
+    </div>
+
+    <div class="scanner-container">
+        <div id="reader"></div>
+        <div style="padding: 15px; text-align: center; background: #fff; margin-top: 10px;">
+            <p style="font-size: 12px; color: #666; margin-bottom: 5px;">Não tem QR Code em mãos?</p>
+            <input type="number" id="manualId" placeholder="ID do Pedido (ex: 19476)" style="width: 150px; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
+            <button onclick="simulateScan()" style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Simular Leitura</button>
+        </div>
+    </div>
+
+    <div class="orders-section">
+        <div class="orders-title">Meus Pedidos Escaneados (<span id="orderCount">0</span>)</div>
+        <div id="ordersList">
+            <!-- Os pedidos vão aparecer aqui -->
+        </div>
+    </div>
+
+    <div class="toast" id="toast">Aviso aqui</div>
+
+    <!-- Modal para exibir o comprovante HTML -->
+    <div class="modal" id="receiptModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="modalTitle">Pedido #00000</span>
+                <i class="fas fa-times modal-close" onclick="closeModal()"></i>
+            </div>
+            <div class="modal-body" id="modalBody">
+                Carregando...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const orders = new Set();
+        let isProcessing = false;
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
+
+        function setStatus(msg, color = '#333') {
+            const sb = document.getElementById('statusMsg');
+            sb.innerText = msg;
+            sb.style.color = color;
+        }
+
+        async function processScan(url) {
+            if (isProcessing) return;
+            
+            // O QR code contém algo como: https://.../pegar/19484
+            // Vamos extrair apenas os números finais
+            const match = url.match(/\/(\d+)$/);
+            if (!match) return; // Não é um QR code válido nosso
+            
+            const pedidoId = match[1];
+            
+            if (orders.has(pedidoId)) {
+                return; // Já foi escaneado e adicionado na lista hoje
+            }
+
+            isProcessing = true;
+            setStatus(`Vinculando Pedido #${pedidoId}...`, '#2299dd');
+            
+            try {
+                const res = await fetch(`/api/pegar/${pedidoId}`, { method: 'POST' });
+                if (res.ok) {
+                    orders.add(pedidoId);
+                    addOrderCard(pedidoId);
+                    showToast(`Pedido #${pedidoId} vinculado!`);
+                    setStatus('Aponte a câmera para o próximo pedido.', '#28a745');
+                } else {
+                    const txt = await res.text();
+                    setStatus(`Erro no #${pedidoId}: ${txt}`, '#dc3545');
+                }
+            } catch (e) {
+                setStatus(`Erro de conexão ao pegar #${pedidoId}`, '#dc3545');
+            }
+            
+            setTimeout(() => { isProcessing = false; }, 2000); // Pausa de 2s antes de escanear o próximo
+        }
+
+        async function returnOrder(pedidoId) {
+            if (!confirm(`Tem certeza que deseja DEVOLVER o pedido #${pedidoId}?`)) return;
+            
+            setStatus(`Devolvendo Pedido #${pedidoId}...`, '#dc3545');
+            
+            try {
+                const res = await fetch(`/api/devolver/${pedidoId}`, { method: 'POST' });
+                if (res.ok) {
+                    orders.delete(pedidoId);
+                    document.getElementById(`card-${pedidoId}`).remove();
+                    document.getElementById('orderCount').innerText = orders.size;
+                    showToast(`Pedido #${pedidoId} devolvido!`);
+                    setStatus('Aponte a câmera para ler QR Codes.', '#333');
+                } else {
+                    const txt = await res.text();
+                    setStatus(`Erro ao devolver #${pedidoId}: ${txt}`, '#dc3545');
+                }
+            } catch (e) {
+                setStatus(`Erro de conexão ao devolver #${pedidoId}`, '#dc3545');
+            }
+        }
+
+        async function viewReceipt(pedidoId) {
+            const modal = document.getElementById('receiptModal');
+            const title = document.getElementById('modalTitle');
+            const body = document.getElementById('modalBody');
+            
+            title.innerText = `Pedido #${pedidoId}`;
+            body.innerHTML = '<div style="padding: 20px;">Buscando comprovante...</div>';
+            modal.style.display = 'flex';
+            
+            try {
+                const res = await fetch(`/api/comprovante/${pedidoId}`);
+                if (res.ok) {
+                    const html = await res.text();
+                    // Usar iframe para não vazar o CSS feio da impressora para a nossa página
+                    body.innerHTML = `<iframe class="receipt-frame" id="receiptIframe"></iframe>`;
+                    const iframeDoc = document.getElementById('receiptIframe').contentWindow.document;
+                    iframeDoc.open();
+                    iframeDoc.write(html);
+                    iframeDoc.close();
+                } else {
+                    body.innerHTML = '<div style="padding: 20px; color: red;">Erro ao carregar detalhes do pedido.</div>';
+                }
+            } catch(e) {
+                body.innerHTML = '<div style="padding: 20px; color: red;">Erro de conexão.</div>';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('receiptModal').style.display = 'none';
+        }
+
+        function addOrderCard(pedidoId) {
+            const list = document.getElementById('ordersList');
+            const card = document.createElement('div');
+            card.className = 'order-card';
+            card.id = `card-${pedidoId}`;
+            
+            card.innerHTML = `
+                <div class="order-info">
+                    <h3>Pedido #${pedidoId}</h3>
+                    <p>Vinculado com sucesso</p>
+                </div>
+                <div class="order-actions">
+                    <button class="btn-view" onclick="viewReceipt('${pedidoId}')"><i class="fas fa-eye"></i></button>
+                    <button class="btn-return" onclick="returnOrder('${pedidoId}')"><i class="fas fa-undo"></i></button>
+                </div>
+            `;
+            
+            list.prepend(card);
+            document.getElementById('orderCount').innerText = orders.size;
+        }
+
+        function simulateScan() {
+            const input = document.getElementById('manualId').value;
+            if (input) {
+                // Simula como se a câmera tivesse lido a URL inteira
+                processScan(`https://localhost/pegar/${input}`);
+                document.getElementById('manualId').value = '';
+            }
+        }
+        
+        // Inicializar a câmera
+        const html5QrCode = new Html5Qrcode("reader");
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        
+        html5QrCode.start({ facingMode: "environment" }, config, (decodedText, decodedResult) => {
+            processScan(decodedText);
+        })
+        .catch((err) => {
+            setStatus("Erro ao acessar a câmera. Dê permissão ao navegador.", "#dc3545");
+        });
+    </script>
+</body>
+</html>
