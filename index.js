@@ -24,8 +24,8 @@ const htmlApp = `
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; color: #333; }
         .header { background-color: #2299dd; color: white; padding: 15px; text-align: center; font-size: 18px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .scanner-container { width: 100%; max-width: 500px; margin: 0 auto; background: black; position: relative; }
-        #reader { width: 100%; }
+        .scanner-container { width: 250px; height: 250px; margin: 20px auto; background: black; position: relative; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+        #reader { width: 100%; height: 100%; }
         .status-bar { text-align: center; padding: 10px; font-size: 14px; background: #fff; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .orders-section { padding: 15px; max-width: 500px; margin: 0 auto; }
         .orders-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #555; }
@@ -60,10 +60,13 @@ const htmlApp = `
 
     <div class="scanner-container">
         <div id="reader"></div>
-        <div style="padding: 15px; text-align: center; background: #fff; margin-top: 10px;">
-            <p style="font-size: 12px; color: #666; margin-bottom: 5px;">Não tem QR Code em mãos?</p>
-            <input type="number" id="manualId" placeholder="ID do Pedido (ex: 19476)" style="width: 150px; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
-            <button onclick="simulateScan()" style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Simular Leitura</button>
+    </div>
+
+    <div style="padding: 15px; text-align: center; background: #fff; border-radius: 8px; max-width: 300px; margin: 15px auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+        <p style="font-size: 13px; color: #555; margin: 0 0 10px 0; font-weight: bold;">Procurar pedido pelo código</p>
+        <div style="display: flex; justify-content: center; gap: 8px;">
+            <input type="number" id="manualId" placeholder="Ex: 19476" style="width: 120px; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
+            <button onclick="simulateScan()" style="padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Procurar</button>
         </div>
     </div>
 
@@ -203,7 +206,7 @@ const htmlApp = `
         }
         
         const html5QrCode = new Html5Qrcode("reader");
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        const config = { fps: 10, qrbox: { width: 180, height: 180 }, aspectRatio: 1.0 };
         html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => { processScan(decodedText); }).catch(() => { setStatus("Erro ao acessar a câmera.", "#dc3545"); });
     </script>
 </body>
