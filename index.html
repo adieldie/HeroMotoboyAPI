@@ -1,201 +1,442 @@
+const express = require('express');
+const axios = require('axios');
+const cheerio = require('cheerio');
+const { wrapper } = require('axios-cookiejar-support');
+const { CookieJar } = require('tough-cookie');
+const cookieParser = require('cookie-parser');
+const cors = require('cors');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// ==========================================
+// FRONTEND HÍBRIDO (PWA)
+// ==========================================
+app.get('/', (req, res) => {
+    res.send(`
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Central do Motoboy</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <title>MOTOBOY PRO</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; color: #333; }
-        .header { background-color: #2299dd; color: white; padding: 15px; text-align: center; font-size: 18px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .scanner-container { width: 100%; max-width: 500px; margin: 0 auto; background: black; position: relative; }
-        #reader { width: 100%; }
-        .status-bar { text-align: center; padding: 10px; font-size: 14px; background: #fff; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .orders-section { padding: 15px; max-width: 500px; margin: 0 auto; }
-        .orders-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #555; }
-        .order-card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #28a745; }
-        .order-info h3 { margin: 0 0 5px 0; font-size: 16px; color: #333; }
-        .order-info p { margin: 0; font-size: 12px; color: #666; }
-        .order-actions button { border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; margin-left: 5px; }
-        .btn-view { background-color: #e9ecef; color: #333; }
-        .btn-return { background-color: #dc3545; color: white; }
+        :root {
+            --bg: #0f1115;
+            --surface: #1a1d24;
+            --primary: #2299dd;
+            --success: #00d26a;
+            --danger: #f8312f;
+            --text: #ffffff;
+            --text-dim: #8b92a5;
+        }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; padding: 0; background-color: var(--bg); color: var(--text); 
+        }
         
-        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; font-size: 14px; display: none; z-index: 1000; }
+        /* TELAS */
+        .screen { display: none; }
+        .screen.active { display: block; }
         
-        /* Modal do Comprovante */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: flex-end; }
-        .modal-content { background: #f4f6f9; width: 100%; height: 85vh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; overflow: hidden; animation: slideUp 0.3s ease-out; }
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        .modal-header { padding: 15px 20px; background: white; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 16px; }
-        .modal-close { cursor: pointer; color: #dc3545; font-size: 22px; padding: 5px; }
-        .modal-body { flex: 1; padding: 0; display: flex; justify-content: center; background: #e9ecef; }
-        .receipt-frame { width: 100%; height: 100%; border: none; background: white; max-width: 400px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        /* TELA DE LOGIN */
+        .login-box {
+            padding: 40px 30px; text-align: center; max-width: 400px; margin: 40px auto;
+        }
+        .login-box h2 { font-size: 24px; font-weight: 800; margin-bottom: 10px; }
+        .login-box p { color: var(--text-dim); font-size: 14px; margin-bottom: 30px; }
+        .login-box input {
+            width: 100%; padding: 15px; margin-bottom: 15px; background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 12px;
+            box-sizing: border-box; font-family: 'Inter', sans-serif;
+        }
+        .login-box button {
+            width: 100%; padding: 15px; background: var(--primary); color: white; border: none;
+            border-radius: 12px; font-weight: 800; font-size: 16px; cursor: pointer;
+        }
+
+        /* TELA DO APP */
+        .header { background: var(--surface); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .header h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 1px; color: var(--primary); }
+        .btn-logout { background: transparent; border: none; color: var(--text-dim); font-size: 20px; padding: 5px; cursor: pointer; }
+
+        .status-bar { background: rgba(255,255,255,0.03); padding: 15px; text-align: center; font-size: 14px; font-weight: 600; color: #aaa; margin: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+
+        .scanner-wrapper { position: relative; width: 100%; max-width: 280px; margin: 0 auto; display: none; overflow: hidden; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .scanner-container { width: 100%; border-radius: 20px; overflow: hidden; }
+        
+        .laser { position: absolute; width: 100%; height: 3px; background: #2299dd; z-index: 2; top: 50%; box-shadow: 0 0 15px 5px rgba(34, 153, 221, 0.5); animation: scan 2s infinite linear; display: none; }
+        @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+
+        .controls { padding: 20px; display: flex; gap: 15px; justify-content: center; }
+        .btn-toggle { background: var(--surface); color: var(--primary); border: 2px solid var(--primary); padding: 15px 25px; border-radius: 12px; font-weight: 800; font-size: 15px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: 0.2s; }
+
+        .manual-input { margin: 0 20px 20px 20px; background: var(--surface); padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); }
+        .manual-input p { margin: 0 0 10px 0; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+        .input-group { display: flex; gap: 10px; }
+        .input-group input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 12px; border-radius: 8px; color: #fff; font-family: 'Inter'; font-weight: 600; font-size: 16px; }
+        .input-group button { background: var(--text-dim); color: #fff; border: none; padding: 0 20px; border-radius: 8px; font-weight: 800; cursor: pointer; }
+
+        .orders-section { padding: 20px; padding-bottom: 100px; }
+        .orders-title { font-size: 15px; font-weight: 800; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; color: var(--text-dim); }
+        .badge { background: var(--primary); color: #fff; padding: 3px 8px; border-radius: 10px; font-size: 12px; }
+
+        .order-card { background: var(--surface); padding: 20px; border-radius: 16px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05); animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .order-info h3 { margin: 0 0 5px 0; font-size: 18px; color: #fff; }
+        .order-info p { margin: 0 0 15px 0; font-size: 14px; color: var(--success); font-weight: 600; }
+        
+        .order-actions { display: flex; gap: 10px; }
+        .order-actions button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+        .btn-view { background: rgba(255,255,255,0.1); color: #fff; }
+        .btn-return { background: rgba(248, 49, 47, 0.1); color: var(--danger); flex: 0.5 !important; }
+        .btn-finish { background: var(--success); color: #fff; flex: 2 !important; }
+
+        .toast { position: fixed; bottom: -100px; left: 20px; right: 20px; background: var(--success); color: white; padding: 15px; border-radius: 12px; font-weight: 600; display: flex; align-items: center; gap: 10px; box-shadow: 0 10px 20px rgba(0, 210, 106, 0.3); transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 1000; }
+        .toast.show { bottom: 20px; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; padding: 20px; box-sizing: border-box; }
+        .modal-content { background: var(--surface); border-radius: 20px; height: 100%; max-height: calc(100vh - 40px); display: flex; flex-direction: column; overflow: hidden; }
+        .modal-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .modal-header span { font-weight: 800; font-size: 18px; }
+        .modal-close { background: rgba(255,255,255,0.1); width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; }
+        .modal-body { flex: 1; overflow-y: auto; background: #fff; }
     </style>
+    <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 <body>
-
-    <div class="header">
-        <i class="fas fa-motorcycle"></i> Central do Motoboy
-    </div>
     
-    <div class="status-bar" id="statusMsg">
-        Aponte a câmera para o QR Code do pedido.
-    </div>
-
-    <div class="scanner-container">
-        <div id="reader"></div>
-        <div style="padding: 15px; text-align: center; background: #fff; margin-top: 10px;">
-            <p style="font-size: 12px; color: #666; margin-bottom: 5px;">Não tem QR Code em mãos?</p>
-            <input type="number" id="manualId" placeholder="ID do Pedido (ex: 19476)" style="width: 150px; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
-            <button onclick="simulateScan()" style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Simular Leitura</button>
+    <!-- TELA DE LOGIN -->
+    <div id="loginScreen" class="screen">
+        <div class="login-box">
+            <div class="icon" style="font-size: 40px; color: var(--primary); margin-bottom: 20px;"><i class="fas fa-bolt"></i></div>
+            <h2>MOTOBOY PRO</h2>
+            <p>Acesse com seu CPF e senha da Hero.</p>
+            <form id="loginForm">
+                <input type="text" id="cpfInput" placeholder="Seu CPF (ex: 000.000.000-00)" required>
+                <input type="password" id="passInput" placeholder="Sua Senha" required>
+                <button type="submit" id="btnLogin">Entrar</button>
+            </form>
+            <p id="loginError" style="color: var(--danger); margin-top: 15px; display: none; font-weight: 600;"></p>
         </div>
     </div>
 
-    <div class="orders-section">
-        <div class="orders-title">Meus Pedidos Escaneados (<span id="orderCount">0</span>)</div>
-        <div id="ordersList">
-            <!-- Os pedidos vão aparecer aqui -->
+    <!-- TELA DO APP -->
+    <div id="appScreen" class="screen">
+        <div class="header">
+            <h1>MOTOBOY PRO</h1>
+            <button class="btn-logout" onclick="logout()"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
+        
+        <div class="status-bar" id="statusMsg">
+            Aponte a câmera para o QR Code
+        </div>
+
+        <div class="scanner-wrapper" id="scannerWrapper">
+            <div class="laser" id="laserLine"></div>
+            <div class="scanner-container">
+                <div id="reader"></div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn-toggle" onclick="toggleCamera()" id="btnToggleCam">
+                <i class="fas fa-camera"></i> Ler QR Code
+            </button>
+        </div>
+
+        <div class="manual-input">
+            <p>Procurar código manual</p>
+            <div class="input-group">
+                <input type="number" id="manualId" placeholder="Ex: 19476">
+                <button onclick="simulateScan()">IR</button>
+            </div>
+        </div>
+
+        <div class="orders-section">
+            <div class="orders-title">Meus Pedidos <span class="badge" id="orderCount">0</span></div>
+            <div id="ordersList"></div>
         </div>
     </div>
 
-    <div class="toast" id="toast">Aviso aqui</div>
+    <div class="toast" id="toast"><i class="fas fa-check-circle"></i> <span id="toastMsg"></span></div>
 
-    <!-- Modal para exibir o comprovante HTML -->
     <div class="modal" id="receiptModal">
         <div class="modal-content">
             <div class="modal-header">
                 <span id="modalTitle">Pedido #00000</span>
-                <i class="fas fa-times modal-close" onclick="closeModal()"></i>
+                <div class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></div>
             </div>
-            <div class="modal-body" id="modalBody">
-                Carregando...
-            </div>
+            <div class="modal-body" id="modalBody"></div>
         </div>
     </div>
 
     <script>
+        // ======= CONFIGURAÇÃO DE ARQUITETURA HÍBRIDA =======
+        // Aqui o frontend se conecta ao Ngrok rodando no PC da loja!
+        const API_BASE = "https://groin-booth-circle.ngrok-free.dev";
+        
+        function getHeaders() {
+            return {
+                'x-hero-cpf': localStorage.getItem('hero_cpf'),
+                'x-hero-password': localStorage.getItem('hero_password'),
+                'ngrok-skip-browser-warning': 'true'
+            };
+        }
+
+        // ======= LÓGICA DE TELAS E LOGIN =======
+        window.onload = () => {
+            if (localStorage.getItem('hero_cpf') && localStorage.getItem('hero_password')) {
+                showApp();
+            } else {
+                document.getElementById('loginScreen').classList.add('active');
+            }
+        };
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const cpf = document.getElementById('cpfInput').value;
+            const pass = document.getElementById('passInput').value;
+            const btn = document.getElementById('btnLogin');
+            const err = document.getElementById('loginError');
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Entrando...';
+            err.style.display = 'none';
+
+            try {
+                // Testa o login no Ngrok
+                const res = await fetch(API_BASE + '/api/auth/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+                    body: JSON.stringify({ cpf, password: pass })
+                });
+
+                if (res.ok) {
+                    localStorage.setItem('hero_cpf', cpf);
+                    localStorage.setItem('hero_password', pass);
+                    showApp();
+                } else {
+                    const txt = await res.text();
+                    err.innerText = txt;
+                    err.style.display = 'block';
+                }
+            } catch (error) {
+                err.innerText = "Erro de conexão com a loja.";
+                err.style.display = 'block';
+            }
+            btn.innerHTML = 'Entrar';
+        });
+
+        function showApp() {
+            document.getElementById('loginScreen').classList.remove('active');
+            document.getElementById('appScreen').classList.add('active');
+        }
+
+        function logout() {
+            localStorage.removeItem('hero_cpf');
+            localStorage.removeItem('hero_password');
+            window.location.reload();
+        }
+
+        // ======= LÓGICA DO SCANNER =======
         const orders = new Set();
         let isProcessing = false;
+        let cameraVisible = false;
+        let html5QrCode = null;
 
         function showToast(msg) {
             const toast = document.getElementById('toast');
-            toast.innerText = msg;
-            toast.style.display = 'block';
-            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
         }
 
-        function setStatus(msg, color = '#333') {
+        function setStatus(msg, color = '#aaa') {
             const sb = document.getElementById('statusMsg');
             sb.innerText = msg;
             sb.style.color = color;
         }
 
-        async function processScan(url) {
-            if (isProcessing) return;
+        function toggleCamera() {
+            const container = document.getElementById('scannerWrapper');
+            const btn = document.getElementById('btnToggleCam');
             
-            // O QR code contém algo como: https://.../pegar/19484
-            // Vamos extrair apenas os números finais
-            const match = url.match(/\/(\d+)$/);
-            if (!match) return; // Não é um QR code válido nosso
-            
-            const pedidoId = match[1];
-            
-            if (orders.has(pedidoId)) {
-                return; // Já foi escaneado e adicionado na lista hoje
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
             }
 
+            if (cameraVisible) {
+                html5QrCode.stop().then(() => {
+                    container.style.display = 'none';
+                    document.getElementById('laserLine').style.display = 'none';
+                    btn.innerHTML = '<i class="fas fa-camera"></i> Ler QR Code';
+                    cameraVisible = false;
+                }).catch(err => console.error("Failed to stop camera", err));
+            } else {
+                container.style.display = 'block';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Iniciando...';
+                
+                const config = { fps: 10, qrbox: { width: 180, height: 180 }, aspectRatio: 1.0 };
+                html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => { 
+                    processScan(decodedText); 
+                }).then(() => {
+                    btn.innerHTML = '<i class="fas fa-camera-slash"></i> Ocultar Câmera';
+                    document.getElementById('laserLine').style.display = 'block';
+                    cameraVisible = true;
+                }).catch(() => {
+                    container.style.display = 'none';
+                    btn.innerHTML = '<i class="fas fa-camera"></i> Ler QR Code';
+                    setStatus("Erro ao acessar a câmera. Tente por HTTPS.", "var(--danger)"); 
+                });
+            }
+        }
+
+        async function processScan(url) {
+            if (isProcessing) return;
+            const match = url.match(/\\/(\\d+)$/);
+            if (!match) return; 
+            const pedidoId = match[1];
+            if (orders.has(pedidoId)) return; 
+            
             isProcessing = true;
-            setStatus(`Vinculando Pedido #${pedidoId}...`, '#2299dd');
+            setStatus(\`Vinculando Pedido #\${pedidoId}...\`, '#2299dd');
+            document.getElementById('laserLine').style.background = '#2299dd';
+            document.getElementById('laserLine').style.boxShadow = '0 0 15px 5px rgba(34, 153, 221, 0.5)';
             
             try {
-                const res = await fetch(`/api/pegar/${pedidoId}`, { method: 'POST' });
+                const res = await fetch(API_BASE + \`/api/pegar/\${pedidoId}\`, { 
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                
                 if (res.ok) {
+                    const data = await res.json();
                     orders.add(pedidoId);
-                    addOrderCard(pedidoId);
-                    showToast(`Pedido #${pedidoId} vinculado!`);
-                    setStatus('Aponte a câmera para o próximo pedido.', '#28a745');
+                    addOrderCard(pedidoId, data.total);
+                    showToast(\`Pedido #\${pedidoId} vinculado!\`);
+                    setStatus('Aponte a câmera para o próximo pedido.', '#aaa');
                 } else {
                     const txt = await res.text();
-                    setStatus(`Erro no #${pedidoId}: ${txt}`, '#dc3545');
+                    setStatus(\`Erro no #\${pedidoId}: \${txt}\`, 'var(--danger)');
+                    if(res.status === 401) logout();
                 }
             } catch (e) {
-                setStatus(`Erro de conexão ao pegar #${pedidoId}`, '#dc3545');
+                setStatus(\`Erro de conexão ao pegar #\${pedidoId}\`, 'var(--danger)');
             }
             
-            setTimeout(() => { isProcessing = false; }, 2000); // Pausa de 2s antes de escanear o próximo
+            document.getElementById('laserLine').style.background = 'var(--success)';
+            document.getElementById('laserLine').style.boxShadow = '0 0 15px 5px rgba(0, 210, 106, 0.5)';
+            setTimeout(() => { isProcessing = false; }, 2000); 
+        }
+
+        async function finishOrder(pedidoId) {
+            if (!confirm(\`Tem certeza que deseja marcar o pedido #\${pedidoId} como ENTREGUE?\`)) return;
+            setStatus(\`Finalizando Pedido #\${pedidoId}...\`, 'var(--success)');
+            try {
+                const res = await fetch(API_BASE + \`/api/finalizar/\${pedidoId}\`, { 
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                
+                if (res.ok) {
+                    orders.delete(pedidoId);
+                    const card = document.getElementById(\`card-\${pedidoId}\`);
+                    card.style.animation = 'none';
+                    card.style.transition = 'all 0.3s';
+                    card.style.transform = 'scale(0.9)';
+                    card.style.opacity = '0';
+                    setTimeout(() => {
+                        card.remove();
+                        document.getElementById('orderCount').innerText = orders.size;
+                        showToast(\`Pedido entregue!\`);
+                        setStatus('Aponte a câmera para ler QR Codes.', '#aaa');
+                    }, 300);
+                } else {
+                    const txt = await res.text();
+                    setStatus(\`Erro ao finalizar #\${pedidoId}: \${txt}\`, 'var(--danger)');
+                }
+            } catch (e) {
+                setStatus(\`Erro de conexão ao finalizar #\${pedidoId}\`, 'var(--danger)');
+            }
         }
 
         async function returnOrder(pedidoId) {
-            if (!confirm(`Tem certeza que deseja DEVOLVER o pedido #${pedidoId}?`)) return;
-            
-            setStatus(`Devolvendo Pedido #${pedidoId}...`, '#dc3545');
-            
+            if (!confirm(\`Tem certeza que deseja DEVOLVER o pedido #\${pedidoId}?\`)) return;
+            setStatus(\`Devolvendo Pedido #\${pedidoId}...\`, 'var(--danger)');
             try {
-                const res = await fetch(`/api/devolver/${pedidoId}`, { method: 'POST' });
+                const res = await fetch(API_BASE + \`/api/devolver/\${pedidoId}\`, { 
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                
                 if (res.ok) {
                     orders.delete(pedidoId);
-                    document.getElementById(`card-${pedidoId}`).remove();
-                    document.getElementById('orderCount').innerText = orders.size;
-                    showToast(`Pedido #${pedidoId} devolvido!`);
-                    setStatus('Aponte a câmera para ler QR Codes.', '#333');
+                    const card = document.getElementById(\`card-\${pedidoId}\`);
+                    card.style.animation = 'none';
+                    card.style.transition = 'all 0.3s';
+                    card.style.transform = 'scale(0.9)';
+                    card.style.opacity = '0';
+                    setTimeout(() => {
+                        card.remove();
+                        document.getElementById('orderCount').innerText = orders.size;
+                        showToast(\`Pedido devolvido!\`);
+                        setStatus('Aponte a câmera para ler QR Codes.', '#aaa');
+                    }, 300);
                 } else {
                     const txt = await res.text();
-                    setStatus(`Erro ao devolver #${pedidoId}: ${txt}`, '#dc3545');
+                    setStatus(\`Erro ao devolver #\${pedidoId}: \${txt}\`, 'var(--danger)');
                 }
             } catch (e) {
-                setStatus(`Erro de conexão ao devolver #${pedidoId}`, '#dc3545');
+                setStatus(\`Erro de conexão ao devolver #\${pedidoId}\`, 'var(--danger)');
             }
         }
 
         async function viewReceipt(pedidoId) {
-            const modal = document.getElementById('receiptModal');
-            const title = document.getElementById('modalTitle');
-            const body = document.getElementById('modalBody');
-            
-            title.innerText = `Pedido #${pedidoId}`;
-            body.innerHTML = '<div style="padding: 20px;">Buscando comprovante...</div>';
-            modal.style.display = 'flex';
+            document.getElementById('receiptModal').style.display = 'block';
+            document.getElementById('modalTitle').innerText = \`Pedido #\${pedidoId}\`;
+            document.getElementById('modalBody').innerHTML = '<div style="padding: 30px; text-align: center;">Carregando...</div>';
             
             try {
-                const res = await fetch(`/api/comprovante/${pedidoId}`);
+                const res = await fetch(API_BASE + \`/api/comprovante/\${pedidoId}\`, { headers: getHeaders() });
                 if (res.ok) {
                     const html = await res.text();
-                    // Usar iframe para não vazar o CSS feio da impressora para a nossa página
-                    body.innerHTML = `<iframe class="receipt-frame" id="receiptIframe"></iframe>`;
-                    const iframeDoc = document.getElementById('receiptIframe').contentWindow.document;
-                    iframeDoc.open();
-                    iframeDoc.write(html);
-                    iframeDoc.close();
+                    const blob = new Blob([html], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    document.getElementById('modalBody').innerHTML = \`<iframe src="\${url}" style="width:100%; height:100%; border:none; background:#fff;"></iframe>\`;
                 } else {
-                    body.innerHTML = '<div style="padding: 20px; color: red;">Erro ao carregar detalhes do pedido.</div>';
+                    document.getElementById('modalBody').innerHTML = \`<div style="padding: 30px; color: red;">Erro ao carregar comprovante.</div>\`;
                 }
-            } catch(e) {
-                body.innerHTML = '<div style="padding: 20px; color: red;">Erro de conexão.</div>';
+            } catch (e) {
+                document.getElementById('modalBody').innerHTML = \`<div style="padding: 30px; color: red;">Erro de conexão.</div>\`;
             }
         }
 
-        function closeModal() {
-            document.getElementById('receiptModal').style.display = 'none';
-        }
+        function closeModal() { document.getElementById('receiptModal').style.display = 'none'; }
 
-        function addOrderCard(pedidoId) {
+        function addOrderCard(pedidoId, total) {
             const list = document.getElementById('ordersList');
             const card = document.createElement('div');
             card.className = 'order-card';
-            card.id = `card-${pedidoId}`;
-            
-            card.innerHTML = `
+            card.id = \`card-\${pedidoId}\`;
+            card.innerHTML = \`
                 <div class="order-info">
-                    <h3>Pedido #${pedidoId}</h3>
-                    <p>Vinculado com sucesso</p>
+                    <h3>Pedido #\${pedidoId}</h3>
+                    <p><i class="fas fa-check-circle"></i> Vinculado com sucesso</p>
+                    \${total ? \`<p style="font-weight:bold; font-size: 16px; margin-top:5px; color:#2299dd;">\${total}</p>\` : ''}
                 </div>
                 <div class="order-actions">
-                    <button class="btn-view" onclick="viewReceipt('${pedidoId}')"><i class="fas fa-eye"></i></button>
-                    <button class="btn-return" onclick="returnOrder('${pedidoId}')"><i class="fas fa-undo"></i></button>
-                </div>
-            `;
-            
+                    <button class="btn-finish" onclick="finishOrder('\${pedidoId}')"><i class="fas fa-check-double"></i> Entregue</button>
+                    <button class="btn-view" onclick="viewReceipt('\${pedidoId}')"><i class="fas fa-eye"></i></button>
+                    <button class="btn-return" onclick="returnOrder('\${pedidoId}')"><i class="fas fa-undo"></i></button>
+                </div>\`;
             list.prepend(card);
             document.getElementById('orderCount').innerText = orders.size;
         }
@@ -203,22 +444,187 @@
         function simulateScan() {
             const input = document.getElementById('manualId').value;
             if (input) {
-                // Simula como se a câmera tivesse lido a URL inteira
-                processScan(`https://localhost/pegar/${input}`);
+                processScan(input);
                 document.getElementById('manualId').value = '';
             }
         }
-        
-        // Inicializar a câmera
-        const html5QrCode = new Html5Qrcode("reader");
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-        
-        html5QrCode.start({ facingMode: "environment" }, config, (decodedText, decodedResult) => {
-            processScan(decodedText);
-        })
-        .catch((err) => {
-            setStatus("Erro ao acessar a câmera. Dê permissão ao navegador.", "#dc3545");
-        });
     </script>
 </body>
 </html>
+    `);
+});
+
+// ==========================================
+// API JSON BACKEND (MOTOBOY PRO MOTOR)
+// ==========================================
+
+// Autenticação (Teste de Credenciais Seguro)
+app.post('/api/auth/test', async (req, res) => {
+    const { cpf, password } = req.body;
+    if (!cpf || !password) return res.status(400).send("Preencha tudo.");
+    try {
+        await getClientAndLogin(cpf, password);
+        res.send("OK");
+    } catch (error) {
+        res.status(401).send("Credenciais inválidas.");
+    }
+});
+
+// Middleware para verificar cabeçalhos (CORS-friendly)
+function checkAuth(req, res, next) {
+    const hero_cpf = req.headers['x-hero-cpf'];
+    const hero_password = req.headers['x-hero-password'];
+    if (!hero_cpf || !hero_password) {
+        return res.status(401).send("Não autenticado");
+    }
+    req.hero_cpf = hero_cpf;
+    req.hero_password = hero_password;
+    next();
+}
+
+app.post('/api/pegar/:pedidoId', checkAuth, async (req, res) => {
+    try {
+        await processOrder(req.params.pedidoId, req.hero_cpf, req.hero_password, 'vincularEntregador');
+        
+        let total = "";
+        try {
+            const html = await getReceiptHtml(req.params.pedidoId, req.hero_cpf, req.hero_password);
+            const cheerio = require('cheerio');
+            const $ = cheerio.load(html);
+            total = $('#payment-details-total strong').text().trim() || $('#payment-details-total span:last-child').text().trim();
+        } catch(e) {}
+        
+        res.json({ success: true, total });
+    } catch (e) {
+        let errorMsg = e.message;
+        if (e.response && e.response.data) {
+            errorMsg += ' - Detalhes: ' + (typeof e.response.data === 'string' ? e.response.data.substring(0, 200) : JSON.stringify(e.response.data));
+        }
+        res.status(500).send(errorMsg);
+    }
+});
+
+app.post('/api/devolver/:pedidoId', checkAuth, async (req, res) => {
+    try {
+        await processOrder(req.params.pedidoId, req.hero_cpf, req.hero_password, 'desvincularEntregador');
+        res.send("OK");
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+
+app.post('/api/finalizar/:pedidoId', checkAuth, async (req, res) => {
+    try {
+        await processOrder(req.params.pedidoId, req.hero_cpf, req.hero_password, 'marcarComoEntregue');
+        res.send("OK");
+    } catch (e) {
+        let errorMsg = e.message;
+        if (e.response && e.response.data) {
+            errorMsg += ' - Detalhes: ' + (typeof e.response.data === 'string' ? e.response.data.substring(0, 200) : JSON.stringify(e.response.data));
+        }
+        res.status(500).send(errorMsg);
+    }
+});
+
+app.get('/api/comprovante/:pedidoId', checkAuth, async (req, res) => {
+    try {
+        const html = await getReceiptHtml(req.params.pedidoId, req.hero_cpf, req.hero_password);
+        res.send(html);
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+
+// ==========================================
+// FUNÇÕES CORE (Engenharia Reversa Livewire)
+// ==========================================
+
+async function getClientAndLogin(cpf, password) {
+    const jar = new CookieJar();
+    const baseURL = process.env.HERO_BASE_URL || 'https://zecentral.herodelivery.com.br';
+    const client = wrapper(axios.create({
+        jar, withCredentials: true, baseURL,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' }
+    }));
+
+    const loginPage = await client.get('/login');
+    const $login = cheerio.load(loginPage.data);
+    const csrfToken = $login('meta[name="csrf-token"]').attr('content');
+
+    const preLoginData = new URLSearchParams();
+    preLoginData.append('_token', csrfToken);
+    preLoginData.append('cpf', cpf);
+    preLoginData.append('password', password);
+
+    const preRes = await client.post('/set-function', preLoginData, { headers: { 'Referer': `${baseURL}/login` }});
+    if (preRes.data.includes('As credenciais') || preRes.data.includes('incorretas')) {
+        throw new Error('Credenciais incorretas.');
+    }
+
+    const $pre = cheerio.load(preRes.data);
+    const newToken = $pre('input[name="_token"]').attr('value') || csrfToken;
+
+    const finalData = new URLSearchParams();
+    finalData.append('_token', newToken);
+    finalData.append('cpf', cpf);
+    finalData.append('password', password);
+    finalData.append('funcao', 'Entregador');
+
+    const loginResponse = await client.post('/login', finalData, { headers: { 'Referer': `${baseURL}/set-function` }, maxRedirects: 5 });
+    if (loginResponse.request.res.responseUrl && loginResponse.request.res.responseUrl.includes('/login')) {
+        throw new Error('Login falhou na escolha de função.');
+    }
+    
+    return { client, baseURL };
+}
+
+async function processOrder(pedidoId, cpf, password, actionType) {
+    const { client, baseURL } = await getClientAndLogin(cpf, password);
+
+    const painelPage = await client.get('/painel/entregador/pedidos');
+    require('fs').writeFileSync('painel_debug.html', painelPage.data);
+    const $painel = cheerio.load(painelPage.data);
+    
+    const componentDiv = $painel('[wire\\:snapshot]');
+    if (componentDiv.length === 0) throw new Error('Livewire não encontrado.');
+
+    const snapshotRaw = componentDiv.attr('wire:snapshot');
+    const newCsrfToken = $painel('meta[name="csrf-token"]').attr('content');
+    
+    const livewirePayload = {
+        _token: newCsrfToken,
+        components: [{
+            snapshot: snapshotRaw,
+            updates: {},
+            calls: [{ path: "", method: actionType, params: [ parseInt(pedidoId, 10) ] }]
+        }]
+    };
+
+    await client.post('/livewire/update', livewirePayload, {
+        headers: { 
+            'Content-Type': 'application/json', 
+            'Accept': 'application/json', 
+            'X-Livewire': 'true', 
+            'X-CSRF-TOKEN': newCsrfToken,
+            'Referer': `${baseURL}/painel/entregador/pedidos` 
+        }
+    });
+}
+
+async function getReceiptHtml(pedidoId, cpf, password) {
+    const { client } = await getClientAndLogin(cpf, password);
+    const previewUrl = `https://zecentral.herodelivery.com.br/pedidos/preview/${pedidoId}`;
+    
+    const res = await client.get(previewUrl);
+    let html = res.data;
+    html = html.replace(/window\.print\(\);/g, '');
+    html = html.replace(/href="\//g, 'href="https://zecentral.herodelivery.com.br/');
+    html = html.replace(/src="\//g, 'src="https://zecentral.herodelivery.com.br/');
+    html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    require('fs').writeFileSync('receipt_debug.html', html);
+    return html;
+}
+
+app.listen(port, () => {
+    console.log(`🚀 API Híbrida do Motoboy rodando na porta ${port}`);
+});
