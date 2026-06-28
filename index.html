@@ -17,445 +17,7 @@ app.use(cookieParser());
 // ==========================================
 // FRONTEND HÍBRIDO (PWA)
 // ==========================================
-app.get('/', (req, res) => {
-    res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MOTOBOY PRO</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #0f1115;
-            --surface: #1a1d24;
-            --primary: #2299dd;
-            --success: #00d26a;
-            --danger: #f8312f;
-            --text: #ffffff;
-            --text-dim: #8b92a5;
-        }
-        body { 
-            font-family: 'Inter', sans-serif; 
-            margin: 0; padding: 0; background-color: var(--bg); color: var(--text); 
-        }
-        
-        /* TELAS */
-        .screen { display: none; }
-        .screen.active { display: block; }
-        
-        /* TELA DE LOGIN */
-        .login-box {
-            padding: 40px 30px; text-align: center; max-width: 400px; margin: 40px auto;
-        }
-        .login-box h2 { font-size: 24px; font-weight: 800; margin-bottom: 10px; }
-        .login-box p { color: var(--text-dim); font-size: 14px; margin-bottom: 30px; }
-        .login-box input {
-            width: 100%; padding: 15px; margin-bottom: 15px; background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 12px;
-            box-sizing: border-box; font-family: 'Inter', sans-serif;
-        }
-        .login-box button {
-            width: 100%; padding: 15px; background: var(--primary); color: white; border: none;
-            border-radius: 12px; font-weight: 800; font-size: 16px; cursor: pointer;
-        }
-
-        /* TELA DO APP */
-        .header { background: var(--surface); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .header h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 1px; color: var(--primary); }
-        .btn-logout { background: transparent; border: none; color: var(--text-dim); font-size: 20px; padding: 5px; cursor: pointer; }
-
-        .status-bar { background: rgba(255,255,255,0.03); padding: 15px; text-align: center; font-size: 14px; font-weight: 600; color: #aaa; margin: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
-
-        .scanner-wrapper { position: relative; width: 100%; max-width: 280px; margin: 0 auto; display: none; overflow: hidden; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .scanner-container { width: 100%; border-radius: 20px; overflow: hidden; }
-        
-        .laser { position: absolute; width: 100%; height: 3px; background: #2299dd; z-index: 2; top: 50%; box-shadow: 0 0 15px 5px rgba(34, 153, 221, 0.5); animation: scan 2s infinite linear; display: none; }
-        @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
-
-        .controls { padding: 20px; display: flex; gap: 15px; justify-content: center; }
-        .btn-toggle { background: var(--surface); color: var(--primary); border: 2px solid var(--primary); padding: 15px 25px; border-radius: 12px; font-weight: 800; font-size: 15px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: 0.2s; }
-
-        .manual-input { margin: 0 20px 20px 20px; background: var(--surface); padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); }
-        .manual-input p { margin: 0 0 10px 0; font-size: 13px; font-weight: 600; color: var(--text-dim); }
-        .input-group { display: flex; gap: 10px; }
-        .input-group input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 12px; border-radius: 8px; color: #fff; font-family: 'Inter'; font-weight: 600; font-size: 16px; }
-        .input-group button { background: var(--text-dim); color: #fff; border: none; padding: 0 20px; border-radius: 8px; font-weight: 800; cursor: pointer; }
-
-        .orders-section { padding: 20px; padding-bottom: 100px; }
-        .orders-title { font-size: 15px; font-weight: 800; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; color: var(--text-dim); }
-        .badge { background: var(--primary); color: #fff; padding: 3px 8px; border-radius: 10px; font-size: 12px; }
-
-        .order-card { background: var(--surface); padding: 20px; border-radius: 16px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05); animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .order-info h3 { margin: 0 0 5px 0; font-size: 18px; color: #fff; }
-        .order-info p { margin: 0 0 15px 0; font-size: 14px; color: var(--success); font-weight: 600; }
-        
-        .order-actions { display: flex; gap: 10px; }
-        .order-actions button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
-        .btn-view { background: rgba(255,255,255,0.1); color: #fff; }
-        .btn-return { background: rgba(248, 49, 47, 0.1); color: var(--danger); flex: 0.5 !important; }
-        .btn-finish { background: var(--success); color: #fff; flex: 2 !important; }
-
-        .toast { position: fixed; bottom: -100px; left: 20px; right: 20px; background: var(--success); color: white; padding: 15px; border-radius: 12px; font-weight: 600; display: flex; align-items: center; gap: 10px; box-shadow: 0 10px 20px rgba(0, 210, 106, 0.3); transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 1000; }
-        .toast.show { bottom: 20px; }
-
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; padding: 20px; box-sizing: border-box; }
-        .modal-content { background: var(--surface); border-radius: 20px; height: 100%; max-height: calc(100vh - 40px); display: flex; flex-direction: column; overflow: hidden; }
-        .modal-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .modal-header span { font-weight: 800; font-size: 18px; }
-        .modal-close { background: rgba(255,255,255,0.1); width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; }
-        .modal-body { flex: 1; overflow-y: auto; background: #fff; }
-    </style>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-</head>
-<body>
-    
-    <!-- TELA DE LOGIN -->
-    <div id="loginScreen" class="screen">
-        <div class="login-box">
-            <div class="icon" style="font-size: 40px; color: var(--primary); margin-bottom: 20px;"><i class="fas fa-bolt"></i></div>
-            <h2>MOTOBOY PRO</h2>
-            <p>Acesse com seu CPF e senha da Hero.</p>
-            <form id="loginForm">
-                <input type="text" id="cpfInput" placeholder="Seu CPF (ex: 000.000.000-00)" required>
-                <input type="password" id="passInput" placeholder="Sua Senha" required>
-                <button type="submit" id="btnLogin">Entrar</button>
-            </form>
-            <p id="loginError" style="color: var(--danger); margin-top: 15px; display: none; font-weight: 600;"></p>
-        </div>
-    </div>
-
-    <!-- TELA DO APP -->
-    <div id="appScreen" class="screen">
-        <div class="header">
-            <h1>MOTOBOY PRO</h1>
-            <button class="btn-logout" onclick="logout()"><i class="fas fa-sign-out-alt"></i></button>
-        </div>
-        
-        <div class="status-bar" id="statusMsg">
-            Aponte a câmera para o QR Code
-        </div>
-
-        <div class="scanner-wrapper" id="scannerWrapper">
-            <div class="laser" id="laserLine"></div>
-            <div class="scanner-container">
-                <div id="reader"></div>
-            </div>
-        </div>
-        
-        <div class="controls">
-            <button class="btn-toggle" onclick="toggleCamera()" id="btnToggleCam">
-                <i class="fas fa-camera"></i> Ler QR Code
-            </button>
-        </div>
-
-        <div class="manual-input">
-            <p>Procurar código manual</p>
-            <div class="input-group">
-                <input type="number" id="manualId" placeholder="Ex: 19476">
-                <button onclick="simulateScan()">IR</button>
-            </div>
-        </div>
-
-        <div class="orders-section">
-            <div class="orders-title">Meus Pedidos <span class="badge" id="orderCount">0</span></div>
-            <div id="ordersList"></div>
-        </div>
-    </div>
-
-    <div class="toast" id="toast"><i class="fas fa-check-circle"></i> <span id="toastMsg"></span></div>
-
-    <div class="modal" id="receiptModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <span id="modalTitle">Pedido #00000</span>
-                <div class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></div>
-            </div>
-            <div class="modal-body" id="modalBody"></div>
-        </div>
-    </div>
-
-    <script>
-        // ======= CONFIGURAÇÃO DE ARQUITETURA HÍBRIDA =======
-        // Aqui o frontend se conecta ao Ngrok rodando no PC da loja!
-        const API_BASE = "https://groin-booth-circle.ngrok-free.dev";
-        
-        function getHeaders() {
-            return {
-                'x-hero-cpf': localStorage.getItem('hero_cpf'),
-                'x-hero-password': localStorage.getItem('hero_password'),
-                'ngrok-skip-browser-warning': 'true'
-            };
-        }
-
-        // ======= LÓGICA DE TELAS E LOGIN =======
-        window.onload = () => {
-            if (localStorage.getItem('hero_cpf') && localStorage.getItem('hero_password')) {
-                showApp();
-            } else {
-                document.getElementById('loginScreen').classList.add('active');
-            }
-        };
-
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const cpf = document.getElementById('cpfInput').value;
-            const pass = document.getElementById('passInput').value;
-            const btn = document.getElementById('btnLogin');
-            const err = document.getElementById('loginError');
-            
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Entrando...';
-            err.style.display = 'none';
-
-            try {
-                // Testa o login no Ngrok
-                const res = await fetch(API_BASE + '/api/auth/test', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-                    body: JSON.stringify({ cpf, password: pass })
-                });
-
-                if (res.ok) {
-                    localStorage.setItem('hero_cpf', cpf);
-                    localStorage.setItem('hero_password', pass);
-                    showApp();
-                } else {
-                    const txt = await res.text();
-                    err.innerText = txt;
-                    err.style.display = 'block';
-                }
-            } catch (error) {
-                err.innerText = "Erro de conexão com a loja.";
-                err.style.display = 'block';
-            }
-            btn.innerHTML = 'Entrar';
-        });
-
-        function showApp() {
-            document.getElementById('loginScreen').classList.remove('active');
-            document.getElementById('appScreen').classList.add('active');
-        }
-
-        function logout() {
-            localStorage.removeItem('hero_cpf');
-            localStorage.removeItem('hero_password');
-            window.location.reload();
-        }
-
-        // ======= LÓGICA DO SCANNER =======
-        const orders = new Set();
-        let isProcessing = false;
-        let cameraVisible = false;
-        let html5QrCode = null;
-
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            document.getElementById('toastMsg').innerText = msg;
-            toast.classList.add('show');
-            setTimeout(() => { toast.classList.remove('show'); }, 3000);
-        }
-
-        function setStatus(msg, color = '#aaa') {
-            const sb = document.getElementById('statusMsg');
-            sb.innerText = msg;
-            sb.style.color = color;
-        }
-
-        function toggleCamera() {
-            const container = document.getElementById('scannerWrapper');
-            const btn = document.getElementById('btnToggleCam');
-            
-            if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode("reader");
-            }
-
-            if (cameraVisible) {
-                html5QrCode.stop().then(() => {
-                    container.style.display = 'none';
-                    document.getElementById('laserLine').style.display = 'none';
-                    btn.innerHTML = '<i class="fas fa-camera"></i> Ler QR Code';
-                    cameraVisible = false;
-                }).catch(err => console.error("Failed to stop camera", err));
-            } else {
-                container.style.display = 'block';
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Iniciando...';
-                
-                const config = { fps: 10, qrbox: { width: 180, height: 180 }, aspectRatio: 1.0 };
-                html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => { 
-                    processScan(decodedText); 
-                }).then(() => {
-                    btn.innerHTML = '<i class="fas fa-camera-slash"></i> Ocultar Câmera';
-                    document.getElementById('laserLine').style.display = 'block';
-                    cameraVisible = true;
-                }).catch(() => {
-                    container.style.display = 'none';
-                    btn.innerHTML = '<i class="fas fa-camera"></i> Ler QR Code';
-                    setStatus("Erro ao acessar a câmera. Tente por HTTPS.", "var(--danger)"); 
-                });
-            }
-        }
-
-        async function processScan(url) {
-            if (isProcessing) return;
-            const match = url.match(/\\/(\\d+)$/);
-            if (!match) return; 
-            const pedidoId = match[1];
-            if (orders.has(pedidoId)) return; 
-            
-            isProcessing = true;
-            setStatus(\`Vinculando Pedido #\${pedidoId}...\`, '#2299dd');
-            document.getElementById('laserLine').style.background = '#2299dd';
-            document.getElementById('laserLine').style.boxShadow = '0 0 15px 5px rgba(34, 153, 221, 0.5)';
-            
-            try {
-                const res = await fetch(API_BASE + \`/api/pegar/\${pedidoId}\`, { 
-                    method: 'POST',
-                    headers: getHeaders()
-                });
-                
-                if (res.ok) {
-                    const data = await res.json();
-                    orders.add(pedidoId);
-                    addOrderCard(pedidoId, data.total);
-                    showToast(\`Pedido #\${pedidoId} vinculado!\`);
-                    setStatus('Aponte a câmera para o próximo pedido.', '#aaa');
-                } else {
-                    const txt = await res.text();
-                    setStatus(\`Erro no #\${pedidoId}: \${txt}\`, 'var(--danger)');
-                    if(res.status === 401) logout();
-                }
-            } catch (e) {
-                setStatus(\`Erro de conexão ao pegar #\${pedidoId}\`, 'var(--danger)');
-            }
-            
-            document.getElementById('laserLine').style.background = 'var(--success)';
-            document.getElementById('laserLine').style.boxShadow = '0 0 15px 5px rgba(0, 210, 106, 0.5)';
-            setTimeout(() => { isProcessing = false; }, 2000); 
-        }
-
-        async function finishOrder(pedidoId) {
-            if (!confirm(\`Tem certeza que deseja marcar o pedido #\${pedidoId} como ENTREGUE?\`)) return;
-            setStatus(\`Finalizando Pedido #\${pedidoId}...\`, 'var(--success)');
-            try {
-                const res = await fetch(API_BASE + \`/api/finalizar/\${pedidoId}\`, { 
-                    method: 'POST',
-                    headers: getHeaders()
-                });
-                
-                if (res.ok) {
-                    orders.delete(pedidoId);
-                    const card = document.getElementById(\`card-\${pedidoId}\`);
-                    card.style.animation = 'none';
-                    card.style.transition = 'all 0.3s';
-                    card.style.transform = 'scale(0.9)';
-                    card.style.opacity = '0';
-                    setTimeout(() => {
-                        card.remove();
-                        document.getElementById('orderCount').innerText = orders.size;
-                        showToast(\`Pedido entregue!\`);
-                        setStatus('Aponte a câmera para ler QR Codes.', '#aaa');
-                    }, 300);
-                } else {
-                    const txt = await res.text();
-                    setStatus(\`Erro ao finalizar #\${pedidoId}: \${txt}\`, 'var(--danger)');
-                }
-            } catch (e) {
-                setStatus(\`Erro de conexão ao finalizar #\${pedidoId}\`, 'var(--danger)');
-            }
-        }
-
-        async function returnOrder(pedidoId) {
-            if (!confirm(\`Tem certeza que deseja DEVOLVER o pedido #\${pedidoId}?\`)) return;
-            setStatus(\`Devolvendo Pedido #\${pedidoId}...\`, 'var(--danger)');
-            try {
-                const res = await fetch(API_BASE + \`/api/devolver/\${pedidoId}\`, { 
-                    method: 'POST',
-                    headers: getHeaders()
-                });
-                
-                if (res.ok) {
-                    orders.delete(pedidoId);
-                    const card = document.getElementById(\`card-\${pedidoId}\`);
-                    card.style.animation = 'none';
-                    card.style.transition = 'all 0.3s';
-                    card.style.transform = 'scale(0.9)';
-                    card.style.opacity = '0';
-                    setTimeout(() => {
-                        card.remove();
-                        document.getElementById('orderCount').innerText = orders.size;
-                        showToast(\`Pedido devolvido!\`);
-                        setStatus('Aponte a câmera para ler QR Codes.', '#aaa');
-                    }, 300);
-                } else {
-                    const txt = await res.text();
-                    setStatus(\`Erro ao devolver #\${pedidoId}: \${txt}\`, 'var(--danger)');
-                }
-            } catch (e) {
-                setStatus(\`Erro de conexão ao devolver #\${pedidoId}\`, 'var(--danger)');
-            }
-        }
-
-        async function viewReceipt(pedidoId) {
-            document.getElementById('receiptModal').style.display = 'block';
-            document.getElementById('modalTitle').innerText = \`Pedido #\${pedidoId}\`;
-            document.getElementById('modalBody').innerHTML = '<div style="padding: 30px; text-align: center;">Carregando...</div>';
-            
-            try {
-                const res = await fetch(API_BASE + \`/api/comprovante/\${pedidoId}\`, { headers: getHeaders() });
-                if (res.ok) {
-                    const html = await res.text();
-                    const blob = new Blob([html], { type: 'text/html' });
-                    const url = URL.createObjectURL(blob);
-                    document.getElementById('modalBody').innerHTML = \`<iframe src="\${url}" style="width:100%; height:100%; border:none; background:#fff;"></iframe>\`;
-                } else {
-                    document.getElementById('modalBody').innerHTML = \`<div style="padding: 30px; color: red;">Erro ao carregar comprovante.</div>\`;
-                }
-            } catch (e) {
-                document.getElementById('modalBody').innerHTML = \`<div style="padding: 30px; color: red;">Erro de conexão.</div>\`;
-            }
-        }
-
-        function closeModal() { 
-            document.getElementById('receiptModal').style.display = 'none'; 
-            document.getElementById('modalBody').innerHTML = '';
-        }
-
-        function addOrderCard(pedidoId, total) {
-            const list = document.getElementById('ordersList');
-            const card = document.createElement('div');
-            card.className = 'order-card';
-            card.id = \`card-\${pedidoId}\`;
-            card.innerHTML = \`
-                <div class="order-info">
-                    <h3>Pedido #\${pedidoId}</h3>
-                    <p><i class="fas fa-check-circle"></i> Vinculado com sucesso</p>
-                    \${total ? \`<p style="font-weight:bold; font-size: 16px; margin-top:5px; color:#2299dd;">\${total}</p>\` : ''}
-                </div>
-                <div class="order-actions">
-                    <button class="btn-finish" onclick="finishOrder('\${pedidoId}')"><i class="fas fa-check-double"></i> Entregue</button>
-                    <button class="btn-view" onclick="viewReceipt('\${pedidoId}')"><i class="fas fa-eye"></i></button>
-                    <button class="btn-return" onclick="returnOrder('\${pedidoId}')"><i class="fas fa-undo"></i></button>
-                </div>\`;
-            list.prepend(card);
-            document.getElementById('orderCount').innerText = orders.size;
-        }
-
-        function simulateScan() {
-            const input = document.getElementById('manualId').value;
-            if (input) {
-                processScan(input);
-                document.getElementById('manualId').value = '';
-            }
-        }
-    </script>
-</body>
-</html>
-    `);
-});
+app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 
 // ==========================================
 // API JSON BACKEND (MOTOBOY PRO MOTOR)
@@ -485,19 +47,33 @@ function checkAuth(req, res, next) {
     next();
 }
 
+async function extractReceiptData(pedidoId, cpf, password) {
+    let total = "";
+    let endereco = "";
+    try {
+        const html = await getReceiptHtml(pedidoId, cpf, password);
+        const cheerio = require('cheerio');
+        const $ = cheerio.load(html);
+        total = $('#payment-details-total strong').text().trim() || $('#payment-details-total span:last-child').text().trim();
+        
+        let rua = "";
+        let bairro = "";
+        $('span').each((i, el) => {
+            const text = $(el).text().trim();
+            if (text.includes('Endereço:') || text.includes('Endereo:')) rua = $(el).next().text().trim();
+            if (text.includes('Bairro:')) bairro = $(el).next().text().trim();
+        });
+        if (rua && bairro) endereco = \`\${rua}, \${bairro}\`;
+        else if (rua) endereco = rua;
+    } catch(e) {}
+    return { total, endereco };
+}
+
 app.post('/api/pegar/:pedidoId', checkAuth, async (req, res) => {
     try {
         await processOrder(req.params.pedidoId, req.hero_cpf, req.hero_password, 'vincularEntregador');
-        
-        let total = "";
-        try {
-            const html = await getReceiptHtml(req.params.pedidoId, req.hero_cpf, req.hero_password);
-            const cheerio = require('cheerio');
-            const $ = cheerio.load(html);
-            total = $('#payment-details-total strong').text().trim() || $('#payment-details-total span:last-child').text().trim();
-        } catch(e) {}
-        
-        res.json({ success: true, total });
+        const data = await extractReceiptData(req.params.pedidoId, req.hero_cpf, req.hero_password);
+        res.json({ success: true, ...data });
     } catch (e) {
         let errorMsg = e.message;
         if (e.response && e.response.data) {
@@ -533,6 +109,26 @@ app.get('/api/comprovante/:pedidoId', checkAuth, async (req, res) => {
     try {
         const html = await getReceiptHtml(req.params.pedidoId, req.hero_cpf, req.hero_password);
         res.send(html);
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+
+app.get('/api/ativos', checkAuth, async (req, res) => {
+    try {
+        const { client } = await getClientAndLogin(req.hero_cpf, req.hero_password);
+        const painelPage = await client.get('/painel/entregador/pedidos');
+        
+        const regex = /desvincularEntregador\\((\\d+)\\)/g;
+        const matches = [...painelPage.data.matchAll(regex)];
+        const ativos = matches.map(m => m[1]);
+        
+        const pedidosComData = await Promise.all(ativos.map(async (pedidoId) => {
+            const data = await extractReceiptData(pedidoId, req.hero_cpf, req.hero_password);
+            return { id: pedidoId, ...data };
+        }));
+
+        res.json({ success: true, pedidos: pedidosComData });
     } catch (e) {
         res.status(500).send(e.message);
     }
@@ -624,11 +220,11 @@ async function getReceiptHtml(pedidoId, cpf, password) {
     html = html.replace(/href="\//g, 'href="https://zecentral.herodelivery.com.br/');
     html = html.replace(/src="\//g, 'src="https://zecentral.herodelivery.com.br/');
     html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    const customCss = \`<style>
+    const customCss = `<style>
         html { display: flex; justify-content: center; background: #f4f6f9 !important; width: 100%; height: 100%; }
         body { width: 250px !important; margin: 20px 0 !important; padding: 10px !important; background: #fff !important; color: #000 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 8px; height: max-content !important; min-height: auto !important; }
         #print-container { width: 100% !important; margin: 0 !important; border: none !important; box-sizing: border-box; }
-    </style>\`;
+    </style>`;
     html = html.replace('</head>', customCss + '</head>');
     return html;
 }
