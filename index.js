@@ -25,13 +25,11 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 
 // Autenticação (Teste de Credenciais Seguro)
 app.post('/api/auth/test', async (req, res) => {
-    const { cpf, password } = req.body;
-    if (!cpf || !password) return res.status(400).send("Preencha tudo.");
     try {
-        await getClientAndLogin(cpf, password);
+        await getClientAndLogin(req.body.cpf, req.body.password);
         res.send("OK");
-    } catch (error) {
-        res.status(401).send("Credenciais inválidas.");
+    } catch (e) {
+        res.status(401).send("Credenciais inválidas: " + e.message);
     }
 });
 
