@@ -12,86 +12,133 @@ const port = process.env.PORT || 3000;
 
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
+
 const htmlApp = `
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Central do Motoboy</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#121212">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Motoboy Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; color: #333; }
-        .header { background-color: #2299dd; color: white; padding: 15px; text-align: center; font-size: 18px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .scanner-container { width: 250px; height: 250px; margin: 20px auto; background: black; position: relative; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+        :root { --bg: #121212; --card: #1e1e1e; --text: #e0e0e0; --accent: #2299dd; --success: #00d26a; --danger: #ff453a; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg); margin: 0; padding: 0; color: var(--text); -webkit-font-smoothing: antialiased; padding-bottom: 80px; }
+        
+        /* Glassmorphism Header */
+        .header { position: sticky; top: 0; z-index: 100; background: rgba(30, 30, 30, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.05); padding: 20px 15px 15px; text-align: center; font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 0.5px; }
+        .header i { color: var(--accent); margin-right: 8px; }
+        
+        /* Scanner Section */
+        .status-bar { text-align: center; padding: 15px; font-size: 14px; color: #aaa; font-weight: 600; }
+        .scanner-wrapper { position: relative; width: 250px; height: 250px; margin: 10px auto; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 210, 106, 0.05), inset 0 0 0 1px rgba(255,255,255,0.1); background: #000; }
+        .scanner-container { width: 100%; height: 100%; position: relative; z-index: 1; }
         #reader { width: 100%; height: 100%; }
-        .status-bar { text-align: center; padding: 10px; font-size: 14px; background: #fff; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .orders-section { padding: 15px; max-width: 500px; margin: 0 auto; }
-        .orders-title { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #555; }
-        .order-card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #28a745; }
-        .order-info h3 { margin: 0 0 5px 0; font-size: 16px; color: #333; }
-        .order-info p { margin: 0; font-size: 12px; color: #666; }
-        .order-actions button { border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; margin-left: 5px; }
-        .btn-view { background-color: #e9ecef; color: #333; }
-        .btn-return { background-color: #dc3545; color: white; }
         
-        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; font-size: 14px; display: none; z-index: 1000; }
+        /* Laser Animation */
+        .laser { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: var(--success); box-shadow: 0 0 15px 5px rgba(0, 210, 106, 0.5); z-index: 2; animation: scan 2.5s infinite linear; display: none; }
+        @keyframes scan { 0% { top: 5%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 95%; opacity: 0; } }
         
-        /* Modal do Comprovante */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: flex-end; }
-        .modal-content { background: #f4f6f9; width: 100%; height: 85vh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; overflow: hidden; animation: slideUp 0.3s ease-out; }
+        /* Controls */
+        .controls { display: flex; justify-content: center; margin-top: 20px; }
+        .btn-toggle { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.1); padding: 12px 24px; border-radius: 30px; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(5px); display: flex; align-items: center; gap: 8px; }
+        .btn-toggle:active { transform: scale(0.95); background: rgba(255,255,255,0.2); }
+        
+        /* Manual Input */
+        .manual-input { background: var(--card); border-radius: 20px; max-width: 320px; margin: 25px auto; padding: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); }
+        .manual-input p { font-size: 12px; color: #888; margin: 0 0 12px 0; font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+        .input-group { display: flex; gap: 10px; }
+        .input-group input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 12px 15px; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 15px; outline: none; transition: border 0.3s; }
+        .input-group input:focus { border-color: var(--accent); }
+        .input-group button { background: var(--accent); color: white; border: none; padding: 0 20px; border-radius: 12px; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 14px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 10px rgba(34, 153, 221, 0.3); }
+        .input-group button:active { transform: scale(0.92); }
+        
+        /* Orders List */
+        .orders-section { max-width: 500px; margin: 30px auto 0; padding: 0 20px; }
+        .orders-title { font-size: 18px; font-weight: 800; margin-bottom: 15px; color: #fff; display: flex; justify-content: space-between; align-items: center; }
+        .badge { background: var(--accent); color: white; font-size: 12px; padding: 4px 12px; border-radius: 20px; box-shadow: 0 2px 8px rgba(34, 153, 221, 0.3); }
+        
+        .order-card { background: var(--card); border-radius: 16px; padding: 18px; margin-bottom: 15px; box-shadow: 0 6px 16px rgba(0,0,0,0.2); border-left: 4px solid var(--success); display: flex; justify-content: space-between; align-items: center; opacity: 0; transform: translateY(20px); animation: fadeInUp 0.4s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+        
+        .order-info h3 { margin: 0 0 6px 0; font-size: 16px; font-weight: 800; color: #fff; }
+        .order-info p { margin: 0; font-size: 13px; color: #aaa; display: flex; align-items: center; gap: 6px; font-weight: 600; }
+        .order-info p i { color: var(--success); font-size: 11px; }
+        
+        .order-actions { display: flex; gap: 8px; }
+        .order-actions button { border: none; width: 44px; height: 44px; border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 16px; cursor: pointer; transition: all 0.2s; }
+        .btn-view { background-color: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.05); }
+        .btn-view:active { transform: scale(0.9); background-color: rgba(255,255,255,0.15); }
+        .btn-return { background-color: rgba(255, 69, 58, 0.1); color: var(--danger); border: 1px solid rgba(255, 69, 58, 0.2); }
+        .btn-return:active { transform: scale(0.9); background-color: var(--danger); color: white; }
+        
+        /* Modal & Toast */
+        .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: var(--success); color: #000; padding: 14px 25px; border-radius: 30px; font-size: 14px; font-weight: 800; box-shadow: 0 10px 30px rgba(0, 210, 106, 0.3); z-index: 3000; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; align-items: center; gap: 8px; }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 2000; justify-content: center; align-items: flex-end; }
+        .modal-content { background: var(--card); width: 100%; height: 88vh; border-radius: 28px 28px 0 0; display: flex; flex-direction: column; overflow: hidden; animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 -10px 40px rgba(0,0,0,0.5); }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        .modal-header { padding: 15px 20px; background: white; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 16px; }
-        .modal-close { cursor: pointer; color: #dc3545; font-size: 22px; padding: 5px; }
-        .modal-body { flex: 1; padding: 0; display: flex; justify-content: center; background: #e9ecef; }
-        .receipt-frame { width: 100%; height: 100%; border: none; background: white; max-width: 400px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        .modal-header { padding: 22px 25px; background: var(--card); display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 18px; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .modal-close { cursor: pointer; color: var(--text); background: rgba(255,255,255,0.1); width: 38px; height: 38px; display: flex; justify-content: center; align-items: center; border-radius: 50%; transition: all 0.2s; }
+        .modal-close:active { transform: scale(0.9); }
+        .modal-body { flex: 1; padding: 0; display: flex; justify-content: center; background: #000; }
+        .receipt-frame { width: 100%; height: 100%; border: none; background: #fff; max-width: 500px; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <i class="fas fa-motorcycle"></i> Central do Motoboy
+        <i class="fas fa-bolt"></i> MOTOBOY PRO
     </div>
     
     <div class="status-bar" id="statusMsg">
-        Aponte a câmera para o QR Code do pedido.
+        Aponte a câmera para o QR Code
     </div>
 
-    <div style="text-align: center; margin-bottom: 5px;">
-        <button onclick="toggleCamera()" id="btnToggleCam" style="padding: 8px 15px; background: #6c757d; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px;">
+    <div class="scanner-wrapper" id="scannerWrapper">
+        <div class="laser" id="laserLine"></div>
+        <div class="scanner-container">
+            <div id="reader"></div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button class="btn-toggle" onclick="toggleCamera()" id="btnToggleCam">
             <i class="fas fa-camera-slash"></i> Ocultar Câmera
         </button>
     </div>
 
-    <div class="scanner-container">
-        <div id="reader"></div>
-    </div>
-
-    <div style="padding: 15px; text-align: center; background: #fff; border-radius: 8px; max-width: 300px; margin: 15px auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-        <p style="font-size: 13px; color: #555; margin: 0 0 10px 0; font-weight: bold;">Procurar pedido pelo código</p>
-        <div style="display: flex; justify-content: center; gap: 8px;">
-            <input type="number" id="manualId" placeholder="Ex: 19476" style="width: 120px; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
-            <button onclick="simulateScan()" style="padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Procurar</button>
+    <div class="manual-input">
+        <p>Procurar código manual</p>
+        <div class="input-group">
+            <input type="number" id="manualId" placeholder="Ex: 19476">
+            <button onclick="simulateScan()">IR</button>
         </div>
     </div>
 
     <div class="orders-section">
-        <div class="orders-title">Meus Pedidos Escaneados (<span id="orderCount">0</span>)</div>
-        <div id="ordersList">
-        </div>
+        <div class="orders-title">Meus Pedidos <span class="badge" id="orderCount">0</span></div>
+        <div id="ordersList"></div>
     </div>
 
-    <div class="toast" id="toast">Aviso aqui</div>
+    <div class="toast" id="toast"><i class="fas fa-check-circle"></i> <span id="toastMsg"></span></div>
 
     <div class="modal" id="receiptModal">
         <div class="modal-content">
             <div class="modal-header">
                 <span id="modalTitle">Pedido #00000</span>
-                <i class="fas fa-times modal-close" onclick="closeModal()"></i>
+                <div class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></div>
             </div>
             <div class="modal-body" id="modalBody">
-                Carregando...
+                <div style="padding: 30px; color: #fff; font-weight: 600;">Carregando comprovante...</div>
             </div>
         </div>
     </div>
@@ -99,18 +146,37 @@ const htmlApp = `
     <script>
         const orders = new Set();
         let isProcessing = false;
+        let cameraVisible = true;
 
         function showToast(msg) {
             const toast = document.getElementById('toast');
-            toast.innerText = msg;
-            toast.style.display = 'block';
-            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
         }
 
-        function setStatus(msg, color = '#333') {
+        function setStatus(msg, color = '#aaa') {
             const sb = document.getElementById('statusMsg');
             sb.innerText = msg;
             sb.style.color = color;
+        }
+
+        function toggleCamera() {
+            const wrapper = document.getElementById('scannerWrapper');
+            const btn = document.getElementById('btnToggleCam');
+            const laser = document.getElementById('laserLine');
+            
+            if (cameraVisible) {
+                wrapper.style.display = 'none';
+                laser.style.display = 'none';
+                btn.innerHTML = '<i class="fas fa-camera"></i> Mostrar Câmera';
+                cameraVisible = false;
+            } else {
+                wrapper.style.display = 'block';
+                laser.style.display = 'block';
+                btn.innerHTML = '<i class="fas fa-camera-slash"></i> Ocultar Câmera';
+                cameraVisible = true;
+            }
         }
 
         async function processScan(url) {
@@ -122,6 +188,8 @@ const htmlApp = `
             
             isProcessing = true;
             setStatus(\`Vinculando Pedido #\${pedidoId}...\`, '#2299dd');
+            document.getElementById('laserLine').style.background = '#2299dd';
+            document.getElementById('laserLine').style.boxShadow = '0 0 15px 5px rgba(34, 153, 221, 0.5)';
             
             try {
                 const res = await fetch(\`/api/pegar/\${pedidoId}\`, { method: 'POST' });
@@ -129,34 +197,47 @@ const htmlApp = `
                     orders.add(pedidoId);
                     addOrderCard(pedidoId);
                     showToast(\`Pedido #\${pedidoId} vinculado!\`);
-                    setStatus('Aponte a câmera para o próximo pedido.', '#28a745');
+                    setStatus('Aponte a câmera para o próximo pedido.', '#aaa');
                 } else {
                     const txt = await res.text();
-                    setStatus(\`Erro no #\${pedidoId}: \${txt}\`, '#dc3545');
+                    setStatus(\`Erro no #\${pedidoId}: \${txt}\`, 'var(--danger)');
                 }
             } catch (e) {
-                setStatus(\`Erro de conexão ao pegar #\${pedidoId}\`, '#dc3545');
+                setStatus(\`Erro de conexão ao pegar #\${pedidoId}\`, 'var(--danger)');
             }
+            
+            document.getElementById('laserLine').style.background = 'var(--success)';
+            document.getElementById('laserLine').style.boxShadow = '0 0 15px 5px rgba(0, 210, 106, 0.5)';
             setTimeout(() => { isProcessing = false; }, 2000); 
         }
 
         async function returnOrder(pedidoId) {
             if (!confirm(\`Tem certeza que deseja DEVOLVER o pedido #\${pedidoId}?\`)) return;
-            setStatus(\`Devolvendo Pedido #\${pedidoId}...\`, '#dc3545');
+            setStatus(\`Devolvendo Pedido #\${pedidoId}...\`, 'var(--danger)');
             try {
                 const res = await fetch(\`/api/devolver/\${pedidoId}\`, { method: 'POST' });
                 if (res.ok) {
                     orders.delete(pedidoId);
-                    document.getElementById(\`card-\${pedidoId}\`).remove();
-                    document.getElementById('orderCount').innerText = orders.size;
-                    showToast(\`Pedido #\${pedidoId} devolvido!\`);
-                    setStatus('Aponte a câmera para ler QR Codes.', '#333');
+                    
+                    const card = document.getElementById(\`card-\${pedidoId}\`);
+                    card.style.animation = 'none'; // reset
+                    card.style.transition = 'all 0.3s';
+                    card.style.transform = 'scale(0.9)';
+                    card.style.opacity = '0';
+                    
+                    setTimeout(() => {
+                        card.remove();
+                        document.getElementById('orderCount').innerText = orders.size;
+                        showToast(\`Pedido devolvido!\`);
+                        setStatus('Aponte a câmera para ler QR Codes.', '#aaa');
+                    }, 300);
+                    
                 } else {
                     const txt = await res.text();
-                    setStatus(\`Erro ao devolver #\${pedidoId}: \${txt}\`, '#dc3545');
+                    setStatus(\`Erro ao devolver #\${pedidoId}: \${txt}\`, 'var(--danger)');
                 }
             } catch (e) {
-                setStatus(\`Erro de conexão ao devolver #\${pedidoId}\`, '#dc3545');
+                setStatus(\`Erro de conexão ao devolver #\${pedidoId}\`, 'var(--danger)');
             }
         }
 
@@ -166,7 +247,7 @@ const htmlApp = `
             const body = document.getElementById('modalBody');
             
             title.innerText = \`Pedido #\${pedidoId}\`;
-            body.innerHTML = '<div style="padding: 20px;">Buscando comprovante...</div>';
+            body.innerHTML = '<div style="padding: 30px; color: #fff; font-weight: 600;">Buscando comprovante...</div>';
             modal.style.display = 'flex';
             
             try {
@@ -179,10 +260,10 @@ const htmlApp = `
                     iframeDoc.write(html);
                     iframeDoc.close();
                 } else {
-                    body.innerHTML = '<div style="padding: 20px; color: red;">Erro ao carregar detalhes do pedido.</div>';
+                    body.innerHTML = '<div style="padding: 30px; color: var(--danger); font-weight: 600;">Erro ao carregar detalhes do pedido.</div>';
                 }
             } catch(e) {
-                body.innerHTML = '<div style="padding: 20px; color: red;">Erro de conexão.</div>';
+                body.innerHTML = '<div style="padding: 30px; color: var(--danger); font-weight: 600;">Erro de conexão.</div>';
             }
         }
 
@@ -194,7 +275,10 @@ const htmlApp = `
             card.className = 'order-card';
             card.id = \`card-\${pedidoId}\`;
             card.innerHTML = \`
-                <div class="order-info"><h3>Pedido #\${pedidoId}</h3><p>Vinculado com sucesso</p></div>
+                <div class="order-info">
+                    <h3>Pedido #\${pedidoId}</h3>
+                    <p><i class="fas fa-check-circle"></i> Vinculado com sucesso</p>
+                </div>
                 <div class="order-actions">
                     <button class="btn-view" onclick="viewReceipt('\${pedidoId}')"><i class="fas fa-eye"></i></button>
                     <button class="btn-return" onclick="returnOrder('\${pedidoId}')"><i class="fas fa-undo"></i></button>
@@ -211,21 +295,13 @@ const htmlApp = `
             }
         }
         
-        function toggleCamera() {
-            const camDiv = document.querySelector('.scanner-container');
-            const btn = document.getElementById('btnToggleCam');
-            if (camDiv.style.display === 'none') {
-                camDiv.style.display = 'block';
-                btn.innerHTML = '<i class="fas fa-camera-slash"></i> Ocultar Câmera';
-            } else {
-                camDiv.style.display = 'none';
-                btn.innerHTML = '<i class="fas fa-camera"></i> Mostrar Câmera';
-            }
-        }
-        
         const html5QrCode = new Html5Qrcode("reader");
         const config = { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 };
-        html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => { processScan(decodedText); }).catch(() => { setStatus("Erro ao acessar a câmera.", "#dc3545"); });
+        html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => { processScan(decodedText); }).then(() => {
+            document.getElementById('laserLine').style.display = 'block';
+        }).catch(() => { 
+            setStatus("Erro ao acessar a câmera.", "var(--danger)"); 
+        });
     </script>
 </body>
 </html>
@@ -241,22 +317,33 @@ app.get('/', (req, res) => {
         <html lang="pt-BR">
         <head>
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Login - Motoboy</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+            <meta name="theme-color" content="#121212">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            <title>Motoboy Pro - Login</title>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+            <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
             <style>
-                body { font-family: sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-                .login-box { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 320px; text-align: center; }
-                input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-                button { width: 100%; padding: 12px; background-color: #2299dd; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+                body { font-family: 'Inter', sans-serif; background-color: #121212; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; color: #fff; -webkit-font-smoothing: antialiased; }
+                .login-box { background: #1e1e1e; padding: 40px 30px; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); width: 100%; max-width: 320px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
+                .icon { font-size: 44px; color: #2299dd; margin-bottom: 15px; filter: drop-shadow(0 0 10px rgba(34,153,221,0.5)); }
+                h2 { margin: 0 0 8px 0; font-size: 22px; font-weight: 800; }
+                p { font-size: 13px; color: #aaa; margin-bottom: 30px; line-height: 1.5; font-weight: 600; }
+                input { width: 100%; padding: 15px; margin-bottom: 15px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 12px; box-sizing: border-box; font-family: 'Inter', sans-serif; font-size: 15px; transition: 0.3s; outline: none; }
+                input:focus { border-color: #2299dd; box-shadow: 0 0 0 2px rgba(34,153,221,0.2); }
+                button { width: 100%; padding: 15px; background: linear-gradient(135deg, #2299dd, #1a7bb5); color: white; border: none; border-radius: 12px; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 16px; cursor: pointer; transition: 0.2s; box-shadow: 0 6px 15px rgba(34, 153, 221, 0.3); margin-top: 5px; }
+                button:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(34, 153, 221, 0.3); }
             </style>
         </head>
         <body>
             <div class="login-box">
-                <h2>Vincular Celular</h2>
+                <div class="icon"><i class="fas fa-bolt"></i></div>
+                <h2>MOTOBOY PRO</h2>
+                <p>Acesse com seu CPF e senha da Hero uma única vez para ativar este aparelho.</p>
                 <form action="/auth" method="POST">
                     <input type="text" name="cpf" placeholder="Seu CPF (ex: 000.000.000-00)" required>
                     <input type="password" name="password" placeholder="Sua Senha" required>
-                    <button type="submit">Entrar no Scanner</button>
+                    <button type="submit">Ativar Scanner</button>
                 </form>
             </div>
         </body>
