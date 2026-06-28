@@ -47,11 +47,11 @@ function checkAuth(req, res, next) {
     next();
 }
 
-async function extractReceiptData(pedidoId, cpf, password) {
+async function extractReceiptData(pedidoId, cpf, password, existingClient) {
     let total = "";
     let endereco = "";
     try {
-        const html = await getReceiptHtml(pedidoId, cpf, password);
+        const html = await getReceiptHtml(pedidoId, cpf, password, existingClient);
         const cheerio = require('cheerio');
         const $ = cheerio.load(html);
         total = $('#payment-details-total strong').text().trim() || $('#payment-details-total span:last-child').text().trim();
@@ -71,8 +71,8 @@ async function extractReceiptData(pedidoId, cpf, password) {
 
 app.post('/api/pegar/:pedidoId', checkAuth, async (req, res) => {
     try {
-        await processOrder(req.params.pedidoId, req.hero_cpf, req.hero_password, 'vincularEntregador');
-        const data = await extractReceiptData(req.params.pedidoId, req.hero_cpf, req.hero_password);
+        const client = await processOrder(req.params.pedidoId, req.hero_cpf, req.hero_password, 'vincularEntregador');
+        const data = await extractReceiptData(req.params.pedidoId, req.hero_cpf, req.hero_password, client);
         res.json({ success: true, ...data });
     } catch (e) {
         let errorMsg = e.message;
@@ -123,10 +123,12 @@ app.get('/api/ativos', checkAuth, async (req, res) => {
         const matches = [...painelPage.data.matchAll(regex)];
         const ativos = matches.map(m => m[1]);
         
-        const pedidosComData = await Promise.all(ativos.map(async (pedidoId) => {
-            const data = await extractReceiptData(pedidoId, req.hero_cpf, req.hero_password);
-            return { id: pedidoId, ...data };
-        }));
+        const pedidosComData = [];
+        for (const pedidoId of ativos) {
+            const data = await extractReceiptData(pedidoId, req.hero_cpf, req.hero_password, client);
+            pedidosComData.push({ id: pedidoId, ...data });
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
 
         res.json({ success: true, pedidos: pedidosComData });
     } catch (e) {
@@ -208,10 +210,19 @@ async function processOrder(pedidoId, cpf, password, actionType) {
             'Referer': `${baseURL}/painel/entregador/pedidos` 
         }
     });
+
+    return client;
 }
 
-async function getReceiptHtml(pedidoId, cpf, password) {
-    const { client } = await getClientAndLogin(cpf, password);
+async function getReceiptHtml(pedidoId, cpf, password, existingClient) {
+    let client;
+    if (existingClient) {
+        client = existingClient;
+    } else {
+        const result = await getClientAndLogin(cpf, password);
+        client = result.client;
+    }
+    
     const previewUrl = `https://zecentral.herodelivery.com.br/pedidos/preview/${pedidoId}`;
     
     const res = await client.get(previewUrl);
