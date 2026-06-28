@@ -392,7 +392,12 @@ app.post('/api/pegar/:pedidoId', checkAuth, async (req, res) => {
             res.clearCookie('hero_cpf');
             res.clearCookie('hero_password');
         }
-        res.status(500).send(e.message);
+        
+        let errorMsg = e.message;
+        if (e.response && e.response.data) {
+            errorMsg += ' - Detalhes: ' + (typeof e.response.data === 'string' ? e.response.data.substring(0, 200) : JSON.stringify(e.response.data));
+        }
+        res.status(500).send(errorMsg);
     }
 });
 
