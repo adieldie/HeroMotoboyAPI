@@ -58,6 +58,12 @@ const htmlApp = `
         Aponte a câmera para o QR Code do pedido.
     </div>
 
+    <div style="text-align: center; margin-bottom: 5px;">
+        <button onclick="toggleCamera()" id="btnToggleCam" style="padding: 8px 15px; background: #6c757d; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px;">
+            <i class="fas fa-camera-slash"></i> Ocultar Câmera
+        </button>
+    </div>
+
     <div class="scanner-container">
         <div id="reader"></div>
     </div>
@@ -205,8 +211,20 @@ const htmlApp = `
             }
         }
         
+        function toggleCamera() {
+            const camDiv = document.querySelector('.scanner-container');
+            const btn = document.getElementById('btnToggleCam');
+            if (camDiv.style.display === 'none') {
+                camDiv.style.display = 'block';
+                btn.innerHTML = '<i class="fas fa-camera-slash"></i> Ocultar Câmera';
+            } else {
+                camDiv.style.display = 'none';
+                btn.innerHTML = '<i class="fas fa-camera"></i> Mostrar Câmera';
+            }
+        }
+        
         const html5QrCode = new Html5Qrcode("reader");
-        const config = { fps: 10, qrbox: { width: 180, height: 180 }, aspectRatio: 1.0 };
+        const config = { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 };
         html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => { processScan(decodedText); }).catch(() => { setStatus("Erro ao acessar a câmera.", "#dc3545"); });
     </script>
 </body>
