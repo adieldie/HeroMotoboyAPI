@@ -1,132 +1,170 @@
-require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const cookieParser = require('cookie-parser');
 const { wrapper } = require('axios-cookiejar-support');
 const { CookieJar } = require('tough-cookie');
-const path = require('path');
+const cookieParser = require('cookie-parser');
+const cors = require('cors');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cookieParser());
+app.use(cors());
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-const htmlApp = `
+// ==========================================
+// FRONTEND HÍBRIDO (PWA)
+// ==========================================
+app.get('/', (req, res) => {
+    res.send(`
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#121212">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Motoboy Pro</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MOTOBOY PRO</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #121212; --card: #1e1e1e; --text: #e0e0e0; --accent: #2299dd; --success: #00d26a; --danger: #ff453a; }
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg); margin: 0; padding: 0; color: var(--text); -webkit-font-smoothing: antialiased; padding-bottom: 80px; }
+        :root {
+            --bg: #0f1115;
+            --surface: #1a1d24;
+            --primary: #2299dd;
+            --success: #00d26a;
+            --danger: #f8312f;
+            --text: #ffffff;
+            --text-dim: #8b92a5;
+        }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; padding: 0; background-color: var(--bg); color: var(--text); 
+        }
         
-        /* Glassmorphism Header */
-        .header { position: sticky; top: 0; z-index: 100; background: rgba(30, 30, 30, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.05); padding: 20px 15px 15px; text-align: center; font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 0.5px; }
-        .header i { color: var(--accent); margin-right: 8px; }
+        /* TELAS */
+        .screen { display: none; }
+        .screen.active { display: block; }
         
-        /* Scanner Section */
-        .status-bar { text-align: center; padding: 15px; font-size: 14px; color: #aaa; font-weight: 600; }
-        .scanner-wrapper { position: relative; width: 250px; height: 250px; margin: 10px auto; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 210, 106, 0.05), inset 0 0 0 1px rgba(255,255,255,0.1); background: #000; }
-        .scanner-container { width: 100%; height: 100%; position: relative; z-index: 1; }
-        #reader { width: 100%; height: 100%; }
+        /* TELA DE LOGIN */
+        .login-box {
+            padding: 40px 30px; text-align: center; max-width: 400px; margin: 40px auto;
+        }
+        .login-box h2 { font-size: 24px; font-weight: 800; margin-bottom: 10px; }
+        .login-box p { color: var(--text-dim); font-size: 14px; margin-bottom: 30px; }
+        .login-box input {
+            width: 100%; padding: 15px; margin-bottom: 15px; background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 12px;
+            box-sizing: border-box; font-family: 'Inter', sans-serif;
+        }
+        .login-box button {
+            width: 100%; padding: 15px; background: var(--primary); color: white; border: none;
+            border-radius: 12px; font-weight: 800; font-size: 16px; cursor: pointer;
+        }
+
+        /* TELA DO APP */
+        .header { background: var(--surface); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .header h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 1px; color: var(--primary); }
+        .btn-logout { background: transparent; border: none; color: var(--text-dim); font-size: 20px; padding: 5px; cursor: pointer; }
+
+        .status-bar { background: rgba(255,255,255,0.03); padding: 15px; text-align: center; font-size: 14px; font-weight: 600; color: #aaa; margin: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+
+        .scanner-wrapper { position: relative; width: 100%; max-width: 400px; margin: 0 auto; display: none; overflow: hidden; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .scanner-container { width: 100%; border-radius: 20px; overflow: hidden; }
         
-        /* Laser Animation */
-        .laser { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: var(--success); box-shadow: 0 0 15px 5px rgba(0, 210, 106, 0.5); z-index: 2; animation: scan 2.5s infinite linear; display: none; }
-        @keyframes scan { 0% { top: 5%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 95%; opacity: 0; } }
-        
-        /* Controls */
-        .controls { display: flex; justify-content: center; margin-top: 20px; }
-        .btn-toggle { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.1); padding: 12px 24px; border-radius: 30px; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(5px); display: flex; align-items: center; gap: 8px; }
-        .btn-toggle:active { transform: scale(0.95); background: rgba(255,255,255,0.2); }
-        
-        /* Manual Input */
-        .manual-input { background: var(--card); border-radius: 20px; max-width: 320px; margin: 25px auto; padding: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); }
-        .manual-input p { font-size: 12px; color: #888; margin: 0 0 12px 0; font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+        .laser { position: absolute; width: 100%; height: 3px; background: #2299dd; z-index: 2; top: 50%; box-shadow: 0 0 15px 5px rgba(34, 153, 221, 0.5); animation: scan 2s infinite linear; display: none; }
+        @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+
+        .controls { padding: 20px; display: flex; gap: 15px; justify-content: center; }
+        .btn-toggle { background: var(--surface); color: var(--primary); border: 2px solid var(--primary); padding: 15px 25px; border-radius: 12px; font-weight: 800; font-size: 15px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: 0.2s; }
+
+        .manual-input { margin: 0 20px 20px 20px; background: var(--surface); padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); }
+        .manual-input p { margin: 0 0 10px 0; font-size: 13px; font-weight: 600; color: var(--text-dim); }
         .input-group { display: flex; gap: 10px; }
-        .input-group input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 12px 15px; border-radius: 12px; font-family: 'Inter', sans-serif; font-size: 15px; outline: none; transition: border 0.3s; }
-        .input-group input:focus { border-color: var(--accent); }
-        .input-group button { background: var(--accent); color: white; border: none; padding: 0 20px; border-radius: 12px; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 14px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 10px rgba(34, 153, 221, 0.3); }
-        .input-group button:active { transform: scale(0.92); }
+        .input-group input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 12px; border-radius: 8px; color: #fff; font-family: 'Inter'; font-weight: 600; font-size: 16px; }
+        .input-group button { background: var(--text-dim); color: #fff; border: none; padding: 0 20px; border-radius: 8px; font-weight: 800; cursor: pointer; }
+
+        .orders-section { padding: 20px; padding-bottom: 100px; }
+        .orders-title { font-size: 15px; font-weight: 800; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; color: var(--text-dim); }
+        .badge { background: var(--primary); color: #fff; padding: 3px 8px; border-radius: 10px; font-size: 12px; }
+
+        .order-card { background: var(--surface); padding: 20px; border-radius: 16px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05); animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Orders List */
-        .orders-section { max-width: 500px; margin: 30px auto 0; padding: 0 20px; }
-        .orders-title { font-size: 18px; font-weight: 800; margin-bottom: 15px; color: #fff; display: flex; justify-content: space-between; align-items: center; }
-        .badge { background: var(--accent); color: white; font-size: 12px; padding: 4px 12px; border-radius: 20px; box-shadow: 0 2px 8px rgba(34, 153, 221, 0.3); }
+        .order-info h3 { margin: 0 0 5px 0; font-size: 18px; color: #fff; }
+        .order-info p { margin: 0 0 15px 0; font-size: 14px; color: var(--success); font-weight: 600; }
         
-        .order-card { background: var(--card); border-radius: 16px; padding: 18px; margin-bottom: 15px; box-shadow: 0 6px 16px rgba(0,0,0,0.2); border-left: 4px solid var(--success); display: flex; justify-content: space-between; align-items: center; opacity: 0; transform: translateY(20px); animation: fadeInUp 0.4s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
-        
-        .order-info h3 { margin: 0 0 6px 0; font-size: 16px; font-weight: 800; color: #fff; }
-        .order-info p { margin: 0; font-size: 13px; color: #aaa; display: flex; align-items: center; gap: 6px; font-weight: 600; }
-        .order-info p i { color: var(--success); font-size: 11px; }
-        
-        .order-actions { display: flex; gap: 8px; }
-        .order-actions button { border: none; width: 44px; height: 44px; border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 16px; cursor: pointer; transition: all 0.2s; }
-        .btn-view { background-color: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.05); }
-        .btn-view:active { transform: scale(0.9); background-color: rgba(255,255,255,0.15); }
-        .btn-return { background-color: rgba(255, 69, 58, 0.1); color: var(--danger); border: 1px solid rgba(255, 69, 58, 0.2); }
-        .btn-return:active { transform: scale(0.9); background-color: var(--danger); color: white; }
-        
-        /* Modal & Toast */
-        .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: var(--success); color: #000; padding: 14px 25px; border-radius: 30px; font-size: 14px; font-weight: 800; box-shadow: 0 10px 30px rgba(0, 210, 106, 0.3); z-index: 3000; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; align-items: center; gap: 8px; }
-        .toast.show { transform: translateX(-50%) translateY(0); }
-        
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 2000; justify-content: center; align-items: flex-end; }
-        .modal-content { background: var(--card); width: 100%; height: 88vh; border-radius: 28px 28px 0 0; display: flex; flex-direction: column; overflow: hidden; animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 -10px 40px rgba(0,0,0,0.5); }
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        .modal-header { padding: 22px 25px; background: var(--card); display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 18px; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .modal-close { cursor: pointer; color: var(--text); background: rgba(255,255,255,0.1); width: 38px; height: 38px; display: flex; justify-content: center; align-items: center; border-radius: 50%; transition: all 0.2s; }
-        .modal-close:active { transform: scale(0.9); }
-        .modal-body { flex: 1; padding: 0; display: flex; justify-content: center; background: #000; }
-        .receipt-frame { width: 100%; height: 100%; border: none; background: #fff; max-width: 500px; }
+        .order-actions { display: flex; gap: 10px; }
+        .order-actions button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+        .btn-view { background: rgba(255,255,255,0.1); color: #fff; }
+        .btn-return { background: rgba(248, 49, 47, 0.1); color: var(--danger); flex: 0.5 !important; }
+        .btn-finish { background: var(--success); color: #fff; flex: 2 !important; }
+
+        .toast { position: fixed; bottom: -100px; left: 20px; right: 20px; background: var(--success); color: white; padding: 15px; border-radius: 12px; font-weight: 600; display: flex; align-items: center; gap: 10px; box-shadow: 0 10px 20px rgba(0, 210, 106, 0.3); transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 1000; }
+        .toast.show { bottom: 20px; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; padding: 20px; box-sizing: border-box; }
+        .modal-content { background: var(--surface); border-radius: 20px; height: 100%; max-height: calc(100vh - 40px); display: flex; flex-direction: column; overflow: hidden; }
+        .modal-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .modal-header span { font-weight: 800; font-size: 18px; }
+        .modal-close { background: rgba(255,255,255,0.1); width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; }
+        .modal-body { flex: 1; overflow-y: auto; background: #fff; }
     </style>
+    <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 <body>
-
-    <div class="header">
-        <i class="fas fa-bolt"></i> MOTOBOY PRO
-    </div>
     
-    <div class="status-bar" id="statusMsg">
-        Aponte a câmera para o QR Code
-    </div>
-
-    <div class="scanner-wrapper" id="scannerWrapper">
-        <div class="laser" id="laserLine"></div>
-        <div class="scanner-container">
-            <div id="reader"></div>
-        </div>
-    </div>
-    
-    <div class="controls">
-        <button class="btn-toggle" onclick="toggleCamera()" id="btnToggleCam">
-            <i class="fas fa-camera-slash"></i> Ocultar Câmera
-        </button>
-    </div>
-
-    <div class="manual-input">
-        <p>Procurar código manual</p>
-        <div class="input-group">
-            <input type="number" id="manualId" placeholder="Ex: 19476">
-            <button onclick="simulateScan()">IR</button>
+    <!-- TELA DE LOGIN -->
+    <div id="loginScreen" class="screen">
+        <div class="login-box">
+            <div class="icon" style="font-size: 40px; color: var(--primary); margin-bottom: 20px;"><i class="fas fa-bolt"></i></div>
+            <h2>MOTOBOY PRO</h2>
+            <p>Acesse com seu CPF e senha da Hero.</p>
+            <form id="loginForm">
+                <input type="text" id="cpfInput" placeholder="Seu CPF (ex: 000.000.000-00)" required>
+                <input type="password" id="passInput" placeholder="Sua Senha" required>
+                <button type="submit" id="btnLogin">Entrar</button>
+            </form>
+            <p id="loginError" style="color: var(--danger); margin-top: 15px; display: none; font-weight: 600;"></p>
         </div>
     </div>
 
-    <div class="orders-section">
-        <div class="orders-title">Meus Pedidos <span class="badge" id="orderCount">0</span></div>
-        <div id="ordersList"></div>
+    <!-- TELA DO APP -->
+    <div id="appScreen" class="screen">
+        <div class="header">
+            <h1>MOTOBOY PRO</h1>
+            <button class="btn-logout" onclick="logout()"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
+        
+        <div class="status-bar" id="statusMsg">
+            Aponte a câmera para o QR Code
+        </div>
+
+        <div class="scanner-wrapper" id="scannerWrapper">
+            <div class="laser" id="laserLine"></div>
+            <div class="scanner-container">
+                <div id="reader"></div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn-toggle" onclick="toggleCamera()" id="btnToggleCam">
+                <i class="fas fa-camera"></i> Ler QR Code
+            </button>
+        </div>
+
+        <div class="manual-input">
+            <p>Procurar código manual</p>
+            <div class="input-group">
+                <input type="number" id="manualId" placeholder="Ex: 19476">
+                <button onclick="simulateScan()">IR</button>
+            </div>
+        </div>
+
+        <div class="orders-section">
+            <div class="orders-title">Meus Pedidos <span class="badge" id="orderCount">0</span></div>
+            <div id="ordersList"></div>
+        </div>
     </div>
 
     <div class="toast" id="toast"><i class="fas fa-check-circle"></i> <span id="toastMsg"></span></div>
@@ -137,16 +175,82 @@ const htmlApp = `
                 <span id="modalTitle">Pedido #00000</span>
                 <div class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></div>
             </div>
-            <div class="modal-body" id="modalBody">
-                <div style="padding: 30px; color: #fff; font-weight: 600;">Carregando comprovante...</div>
-            </div>
+            <div class="modal-body" id="modalBody"></div>
         </div>
     </div>
 
     <script>
+        // ======= CONFIGURAÇÃO DE ARQUITETURA HÍBRIDA =======
+        // Aqui o frontend se conecta ao Ngrok rodando no PC da loja!
+        const API_BASE = "https://groin-booth-circle.ngrok-free.dev";
+        
+        function getHeaders() {
+            return {
+                'x-hero-cpf': localStorage.getItem('hero_cpf'),
+                'x-hero-password': localStorage.getItem('hero_password'),
+                'ngrok-skip-browser-warning': 'true'
+            };
+        }
+
+        // ======= LÓGICA DE TELAS E LOGIN =======
+        window.onload = () => {
+            if (localStorage.getItem('hero_cpf') && localStorage.getItem('hero_password')) {
+                showApp();
+            } else {
+                document.getElementById('loginScreen').classList.add('active');
+            }
+        };
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const cpf = document.getElementById('cpfInput').value;
+            const pass = document.getElementById('passInput').value;
+            const btn = document.getElementById('btnLogin');
+            const err = document.getElementById('loginError');
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Entrando...';
+            err.style.display = 'none';
+
+            try {
+                // Testa o login no Ngrok
+                const res = await fetch(API_BASE + '/api/auth/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+                    body: JSON.stringify({ cpf, password: pass })
+                });
+
+                if (res.ok) {
+                    localStorage.setItem('hero_cpf', cpf);
+                    localStorage.setItem('hero_password', pass);
+                    showApp();
+                } else {
+                    const txt = await res.text();
+                    err.innerText = txt;
+                    err.style.display = 'block';
+                }
+            } catch (error) {
+                err.innerText = "Erro de conexão com a loja.";
+                err.style.display = 'block';
+            }
+            btn.innerHTML = 'Entrar';
+        });
+
+        function showApp() {
+            document.getElementById('loginScreen').classList.remove('active');
+            document.getElementById('appScreen').classList.add('active');
+        }
+
+        function logout() {
+            localStorage.removeItem('hero_cpf');
+            localStorage.removeItem('hero_password');
+            window.location.reload();
+        }
+
+        // ======= LÓGICA DO SCANNER =======
         const orders = new Set();
         let isProcessing = false;
-        let cameraVisible = true;
+        let cameraVisible = false;
+        let html5QrCode = null;
 
         function showToast(msg) {
             const toast = document.getElementById('toast');
@@ -162,20 +266,36 @@ const htmlApp = `
         }
 
         function toggleCamera() {
-            const wrapper = document.getElementById('scannerWrapper');
+            const container = document.getElementById('scannerWrapper');
             const btn = document.getElementById('btnToggleCam');
-            const laser = document.getElementById('laserLine');
             
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
             if (cameraVisible) {
-                wrapper.style.display = 'none';
-                laser.style.display = 'none';
-                btn.innerHTML = '<i class="fas fa-camera"></i> Mostrar Câmera';
-                cameraVisible = false;
+                html5QrCode.stop().then(() => {
+                    container.style.display = 'none';
+                    document.getElementById('laserLine').style.display = 'none';
+                    btn.innerHTML = '<i class="fas fa-camera"></i> Ler QR Code';
+                    cameraVisible = false;
+                }).catch(err => console.error("Failed to stop camera", err));
             } else {
-                wrapper.style.display = 'block';
-                laser.style.display = 'block';
-                btn.innerHTML = '<i class="fas fa-camera-slash"></i> Ocultar Câmera';
-                cameraVisible = true;
+                container.style.display = 'block';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Iniciando...';
+                
+                const config = { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 };
+                html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => { 
+                    processScan(decodedText); 
+                }).then(() => {
+                    btn.innerHTML = '<i class="fas fa-camera-slash"></i> Ocultar Câmera';
+                    document.getElementById('laserLine').style.display = 'block';
+                    cameraVisible = true;
+                }).catch(() => {
+                    container.style.display = 'none';
+                    btn.innerHTML = '<i class="fas fa-camera"></i> Ler QR Code';
+                    setStatus("Erro ao acessar a câmera. Tente por HTTPS.", "var(--danger)"); 
+                });
             }
         }
 
@@ -192,7 +312,11 @@ const htmlApp = `
             document.getElementById('laserLine').style.boxShadow = '0 0 15px 5px rgba(34, 153, 221, 0.5)';
             
             try {
-                const res = await fetch(\`/api/pegar/\${pedidoId}\`, { method: 'POST' });
+                const res = await fetch(API_BASE + \`/api/pegar/\${pedidoId}\`, { 
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                
                 if (res.ok) {
                     orders.add(pedidoId);
                     addOrderCard(pedidoId);
@@ -201,6 +325,7 @@ const htmlApp = `
                 } else {
                     const txt = await res.text();
                     setStatus(\`Erro no #\${pedidoId}: \${txt}\`, 'var(--danger)');
+                    if(res.status === 401) logout();
                 }
             } catch (e) {
                 setStatus(\`Erro de conexão ao pegar #\${pedidoId}\`, 'var(--danger)');
@@ -211,27 +336,59 @@ const htmlApp = `
             setTimeout(() => { isProcessing = false; }, 2000); 
         }
 
+        async function finishOrder(pedidoId) {
+            if (!confirm(\`Tem certeza que deseja marcar o pedido #\${pedidoId} como ENTREGUE?\`)) return;
+            setStatus(\`Finalizando Pedido #\${pedidoId}...\`, 'var(--success)');
+            try {
+                const res = await fetch(API_BASE + \`/api/finalizar/\${pedidoId}\`, { 
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                
+                if (res.ok) {
+                    orders.delete(pedidoId);
+                    const card = document.getElementById(\`card-\${pedidoId}\`);
+                    card.style.animation = 'none';
+                    card.style.transition = 'all 0.3s';
+                    card.style.transform = 'scale(0.9)';
+                    card.style.opacity = '0';
+                    setTimeout(() => {
+                        card.remove();
+                        document.getElementById('orderCount').innerText = orders.size;
+                        showToast(\`Pedido entregue!\`);
+                        setStatus('Aponte a câmera para ler QR Codes.', '#aaa');
+                    }, 300);
+                } else {
+                    const txt = await res.text();
+                    setStatus(\`Erro ao finalizar #\${pedidoId}: \${txt}\`, 'var(--danger)');
+                }
+            } catch (e) {
+                setStatus(\`Erro de conexão ao finalizar #\${pedidoId}\`, 'var(--danger)');
+            }
+        }
+
         async function returnOrder(pedidoId) {
             if (!confirm(\`Tem certeza que deseja DEVOLVER o pedido #\${pedidoId}?\`)) return;
             setStatus(\`Devolvendo Pedido #\${pedidoId}...\`, 'var(--danger)');
             try {
-                const res = await fetch(\`/api/devolver/\${pedidoId}\`, { method: 'POST' });
+                const res = await fetch(API_BASE + \`/api/devolver/\${pedidoId}\`, { 
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                
                 if (res.ok) {
                     orders.delete(pedidoId);
-                    
                     const card = document.getElementById(\`card-\${pedidoId}\`);
-                    card.style.animation = 'none'; // reset
+                    card.style.animation = 'none';
                     card.style.transition = 'all 0.3s';
                     card.style.transform = 'scale(0.9)';
                     card.style.opacity = '0';
-                    
                     setTimeout(() => {
                         card.remove();
                         document.getElementById('orderCount').innerText = orders.size;
                         showToast(\`Pedido devolvido!\`);
                         setStatus('Aponte a câmera para ler QR Codes.', '#aaa');
                     }, 300);
-                    
                 } else {
                     const txt = await res.text();
                     setStatus(\`Erro ao devolver #\${pedidoId}: \${txt}\`, 'var(--danger)');
@@ -242,28 +399,20 @@ const htmlApp = `
         }
 
         async function viewReceipt(pedidoId) {
-            const modal = document.getElementById('receiptModal');
-            const title = document.getElementById('modalTitle');
-            const body = document.getElementById('modalBody');
-            
-            title.innerText = \`Pedido #\${pedidoId}\`;
-            body.innerHTML = '<div style="padding: 30px; color: #fff; font-weight: 600;">Buscando comprovante...</div>';
-            modal.style.display = 'flex';
+            document.getElementById('receiptModal').style.display = 'block';
+            document.getElementById('modalTitle').innerText = \`Pedido #\${pedidoId}\`;
+            document.getElementById('modalBody').innerHTML = '<div style="padding: 30px; text-align: center;">Carregando...</div>';
             
             try {
-                const res = await fetch(\`/api/comprovante/\${pedidoId}\`);
+                const res = await fetch(API_BASE + \`/api/comprovante/\${pedidoId}\`, { headers: getHeaders() });
                 if (res.ok) {
                     const html = await res.text();
-                    body.innerHTML = \`<iframe class="receipt-frame" id="receiptIframe"></iframe>\`;
-                    const iframeDoc = document.getElementById('receiptIframe').contentWindow.document;
-                    iframeDoc.open();
-                    iframeDoc.write(html);
-                    iframeDoc.close();
+                    document.getElementById('modalBody').innerHTML = html;
                 } else {
-                    body.innerHTML = '<div style="padding: 30px; color: var(--danger); font-weight: 600;">Erro ao carregar detalhes do pedido.</div>';
+                    document.getElementById('modalBody').innerHTML = \`<div style="padding: 30px; color: red;">Erro ao carregar comprovante.</div>\`;
                 }
-            } catch(e) {
-                body.innerHTML = '<div style="padding: 30px; color: var(--danger); font-weight: 600;">Erro de conexão.</div>';
+            } catch (e) {
+                document.getElementById('modalBody').innerHTML = \`<div style="padding: 30px; color: red;">Erro de conexão.</div>\`;
             }
         }
 
@@ -280,6 +429,7 @@ const htmlApp = `
                     <p><i class="fas fa-check-circle"></i> Vinculado com sucesso</p>
                 </div>
                 <div class="order-actions">
+                    <button class="btn-finish" onclick="finishOrder('\${pedidoId}')"><i class="fas fa-check-double"></i> Entregue</button>
                     <button class="btn-view" onclick="viewReceipt('\${pedidoId}')"><i class="fas fa-eye"></i></button>
                     <button class="btn-return" onclick="returnOrder('\${pedidoId}')"><i class="fas fa-undo"></i></button>
                 </div>\`;
@@ -294,105 +444,45 @@ const htmlApp = `
                 document.getElementById('manualId').value = '';
             }
         }
-        
-        const html5QrCode = new Html5Qrcode("reader");
-        const config = { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 };
-        html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => { processScan(decodedText); }).then(() => {
-            document.getElementById('laserLine').style.display = 'block';
-        }).catch(() => { 
-            setStatus("Erro ao acessar a câmera.", "var(--danger)"); 
-        });
     </script>
 </body>
 </html>
-`;
-
-app.get('/', (req, res) => {
-    const cpf = req.cookies.hero_cpf;
-    const password = req.cookies.hero_password;
-
-    if (!cpf || !password) {
-        return res.send(`
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-            <meta name="theme-color" content="#121212">
-            <meta name="apple-mobile-web-app-capable" content="yes">
-            <title>Motoboy Pro - Login</title>
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-            <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-            <style>
-                body { font-family: 'Inter', sans-serif; background-color: #121212; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; color: #fff; -webkit-font-smoothing: antialiased; }
-                .login-box { background: #1e1e1e; padding: 40px 30px; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); width: 100%; max-width: 320px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
-                .icon { font-size: 44px; color: #2299dd; margin-bottom: 15px; filter: drop-shadow(0 0 10px rgba(34,153,221,0.5)); }
-                h2 { margin: 0 0 8px 0; font-size: 22px; font-weight: 800; }
-                p { font-size: 13px; color: #aaa; margin-bottom: 30px; line-height: 1.5; font-weight: 600; }
-                input { width: 100%; padding: 15px; margin-bottom: 15px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 12px; box-sizing: border-box; font-family: 'Inter', sans-serif; font-size: 15px; transition: 0.3s; outline: none; }
-                input:focus { border-color: #2299dd; box-shadow: 0 0 0 2px rgba(34,153,221,0.2); }
-                button { width: 100%; padding: 15px; background: linear-gradient(135deg, #2299dd, #1a7bb5); color: white; border: none; border-radius: 12px; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 16px; cursor: pointer; transition: 0.2s; box-shadow: 0 6px 15px rgba(34, 153, 221, 0.3); margin-top: 5px; }
-                button:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(34, 153, 221, 0.3); }
-            </style>
-        </head>
-        <body>
-            <div class="login-box">
-                <div class="icon"><i class="fas fa-bolt"></i></div>
-                <h2>MOTOBOY PRO</h2>
-                <p>Acesse com seu CPF e senha da Hero uma única vez para ativar este aparelho.</p>
-                <form action="/auth" method="POST">
-                    <input type="text" name="cpf" placeholder="Seu CPF (ex: 000.000.000-00)" required>
-                    <input type="password" name="password" placeholder="Sua Senha" required>
-                    <button type="submit">Ativar Scanner</button>
-                </form>
-            </div>
-        </body>
-        </html>
-        `);
-    }
-
-    res.send(htmlApp);
+    `);
 });
 
-// Autenticação
-app.post('/auth', (req, res) => {
+// ==========================================
+// API JSON BACKEND (MOTOBOY PRO MOTOR)
+// ==========================================
+
+// Autenticação (Teste de Credenciais Seguro)
+app.post('/api/auth/test', async (req, res) => {
     const { cpf, password } = req.body;
     if (!cpf || !password) return res.status(400).send("Preencha tudo.");
-    const oneYear = 1000 * 60 * 60 * 24 * 365;
-    res.cookie('hero_cpf', cpf, { maxAge: oneYear, httpOnly: true });
-    res.cookie('hero_password', password, { maxAge: oneYear, httpOnly: true });
-    res.redirect('/');
+    try {
+        await getClientAndLogin(cpf, password);
+        res.send("OK");
+    } catch (error) {
+        res.status(401).send("Credenciais inválidas.");
+    }
 });
 
-// A Rota antiga pra quem escanear pelo celular normal sem usar o app
-app.get('/pegar/:pedidoId', (req, res) => {
-    // Apenas redirecionamos para o Super Scanner
-    res.redirect('/');
-});
-
-
-// ==========================================
-// API JSON PARA O FRONTEND DO SCANNER
-// ==========================================
-
-// Middleware para verificar se o cookie existe
+// Middleware para verificar cabeçalhos (CORS-friendly)
 function checkAuth(req, res, next) {
-    if (!req.cookies.hero_cpf || !req.cookies.hero_password) {
+    const hero_cpf = req.headers['x-hero-cpf'];
+    const hero_password = req.headers['x-hero-password'];
+    if (!hero_cpf || !hero_password) {
         return res.status(401).send("Não autenticado");
     }
+    req.hero_cpf = hero_cpf;
+    req.hero_password = hero_password;
     next();
 }
 
 app.post('/api/pegar/:pedidoId', checkAuth, async (req, res) => {
     try {
-        await processOrder(req.params.pedidoId, req.cookies.hero_cpf, req.cookies.hero_password, 'vincularEntregador');
+        await processOrder(req.params.pedidoId, req.hero_cpf, req.hero_password, 'vincularEntregador');
         res.send("OK");
     } catch (e) {
-        if (e.message.includes('incorretas')) {
-            res.clearCookie('hero_cpf');
-            res.clearCookie('hero_password');
-        }
-        
         let errorMsg = e.message;
         if (e.response && e.response.data) {
             errorMsg += ' - Detalhes: ' + (typeof e.response.data === 'string' ? e.response.data.substring(0, 200) : JSON.stringify(e.response.data));
@@ -403,16 +493,29 @@ app.post('/api/pegar/:pedidoId', checkAuth, async (req, res) => {
 
 app.post('/api/devolver/:pedidoId', checkAuth, async (req, res) => {
     try {
-        await processOrder(req.params.pedidoId, req.cookies.hero_cpf, req.cookies.hero_password, 'desvincularEntregador');
+        await processOrder(req.params.pedidoId, req.hero_cpf, req.hero_password, 'desvincularEntregador');
         res.send("OK");
     } catch (e) {
         res.status(500).send(e.message);
     }
 });
 
+app.post('/api/finalizar/:pedidoId', checkAuth, async (req, res) => {
+    try {
+        await processOrder(req.params.pedidoId, req.hero_cpf, req.hero_password, 'marcarComoEntregue');
+        res.send("OK");
+    } catch (e) {
+        let errorMsg = e.message;
+        if (e.response && e.response.data) {
+            errorMsg += ' - Detalhes: ' + (typeof e.response.data === 'string' ? e.response.data.substring(0, 200) : JSON.stringify(e.response.data));
+        }
+        res.status(500).send(errorMsg);
+    }
+});
+
 app.get('/api/comprovante/:pedidoId', checkAuth, async (req, res) => {
     try {
-        const html = await getReceiptHtml(req.params.pedidoId, req.cookies.hero_cpf, req.cookies.hero_password);
+        const html = await getReceiptHtml(req.params.pedidoId, req.hero_cpf, req.hero_password);
         res.send(html);
     } catch (e) {
         res.status(500).send(e.message);
@@ -441,7 +544,9 @@ async function getClientAndLogin(cpf, password) {
     preLoginData.append('password', password);
 
     const preRes = await client.post('/set-function', preLoginData, { headers: { 'Referer': `${baseURL}/login` }});
-    if (preRes.data.includes('As credenciais')) throw new Error('Credenciais incorretas.');
+    if (preRes.data.includes('As credenciais') || preRes.data.includes('incorretas')) {
+        throw new Error('Credenciais incorretas.');
+    }
 
     const $pre = cheerio.load(preRes.data);
     const newToken = $pre('input[name="_token"]').attr('value') || csrfToken;
@@ -504,5 +609,5 @@ async function getReceiptHtml(pedidoId, cpf, password) {
 }
 
 app.listen(port, () => {
-    console.log(`🚀 Central do Motoboy rodando na porta ${port}`);
+    console.log(`🚀 API Híbrida do Motoboy rodando na porta ${port}`);
 });
