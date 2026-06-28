@@ -63,7 +63,7 @@ async function extractReceiptData(pedidoId, cpf, password) {
             if (text.includes('Endereço:') || text.includes('Endereo:')) rua = $(el).next().text().trim();
             if (text.includes('Bairro:')) bairro = $(el).next().text().trim();
         });
-        if (rua && bairro) endereco = \`\${rua}, \${bairro}\`;
+        if (rua && bairro) endereco = `${rua}, ${bairro}`;
         else if (rua) endereco = rua;
     } catch(e) {}
     return { total, endereco };
