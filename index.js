@@ -477,7 +477,13 @@ async function processOrder(pedidoId, cpf, password, actionType) {
     };
 
     await client.post('/livewire/update', livewirePayload, {
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Livewire': 'true', 'Referer': `${baseURL}/painel/entregador/pedidos` }
+        headers: { 
+            'Content-Type': 'application/json', 
+            'Accept': 'application/json', 
+            'X-Livewire': 'true', 
+            'X-CSRF-TOKEN': newCsrfToken,
+            'Referer': `${baseURL}/painel/entregador/pedidos` 
+        }
     });
 }
 
